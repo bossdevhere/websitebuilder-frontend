@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { projectsApi, Project } from "../services/api";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
+import { ChatPanel } from "../components/workspace/ChatPanel";
 import { ArrowLeft, Loader2, Play, Cpu } from "lucide-react";
 
 interface LLMConfigInfo {
@@ -22,21 +23,23 @@ export const Workspace: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchProjectData = async () => {
     if (!id || !session?.access_token) return;
+    try {
+      const proj = await projectsApi.getProjectById(session.access_token, id);
+      setProject(proj);
+      if (proj.files && proj.files.length > 0 && !activeFilePath) {
+        setActiveFilePath(proj.files[0].path);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setLoading(true);
-    // Fetch project
-    projectsApi
-      .getProjectById(session.access_token, id)
-      .then((proj) => {
-        setProject(proj);
-        if (proj.files && proj.files.length > 0) {
-          setActiveFilePath(proj.files[0].path);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    fetchProjectData();
 
     // Fetch active LLM config
     fetch("/api/llm/config")
@@ -104,6 +107,18 @@ export const Workspace: React.FC = () => {
     });
   };
 
+  const handleAgentFileUpdated = (path: string, content: string) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const existing = prev.files || [];
+      const updatedFiles = existing.some((f) => f.path === path)
+        ? existing.map((f) => (f.path === path ? { ...f, content } : f))
+        : [...existing, { path, content }];
+      return { ...prev, files: updatedFiles };
+    });
+    setActiveFilePath(path);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[80vh] text-slate-400 space-x-2">
@@ -140,10 +155,13 @@ export const Workspace: React.FC = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="font-bold text-white text-base truncate">{project.name}</h1>
-          
+
           {/* Active LLM Provider Badge */}
           {llmConfig && (
-            <span className="text-xs text-indigo-300 bg-indigo-950/80 border border-indigo-800/80 px-2.5 py-0.5 rounded flex items-center space-x-1.5" title="Provider-Agnostic LLM Engine">
+            <span
+              className="text-xs text-indigo-300 bg-indigo-950/80 border border-indigo-800/80 px-2.5 py-0.5 rounded flex items-center space-x-1.5"
+              title="Provider-Agnostic LLM Engine"
+            >
               <Cpu className="w-3.5 h-3.5 text-indigo-400" />
               <span className="font-mono uppercase font-semibold text-[10px]">{llmConfig.provider}:</span>
               <span>{llmConfig.modelName}</span>
@@ -164,7 +182,14 @@ export const Workspace: React.FC = () => {
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: File Explorer Sidebar */}
+        {/* Left: AI Chat Panel */}
+        <ChatPanel
+          projectId={project.id}
+          token={session?.access_token || ""}
+          onFileUpdated={handleAgentFileUpdated}
+        />
+
+        {/* Middle: File Explorer Sidebar */}
         <FileExplorer
           files={project.files || []}
           activeFilePath={activeFilePath}
