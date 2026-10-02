@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { projectsApi, Project, ProjectFile } from "../services/api";
+import { projectsApi, Project } from "../services/api";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
-import { ArrowLeft, Loader2, Play } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Cpu } from "lucide-react";
+
+interface LLMConfigInfo {
+  provider: string;
+  modelName: string;
+}
 
 export const Workspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +18,7 @@ export const Workspace: React.FC = () => {
 
   const [project, setProject] = useState<Project | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [llmConfig, setLlmConfig] = useState<LLMConfigInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +26,7 @@ export const Workspace: React.FC = () => {
     if (!id || !session?.access_token) return;
 
     setLoading(true);
+    // Fetch project
     projectsApi
       .getProjectById(session.access_token, id)
       .then((proj) => {
@@ -30,6 +37,12 @@ export const Workspace: React.FC = () => {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    // Fetch active LLM config
+    fetch("/api/llm/config")
+      .then((res) => res.json())
+      .then((data) => setLlmConfig(data))
+      .catch((err) => console.error("Failed to fetch LLM config:", err));
   }, [id, session?.access_token]);
 
   const activeFile = project?.files?.find((f) => f.path === activeFilePath) || null;
@@ -127,9 +140,15 @@ export const Workspace: React.FC = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="font-bold text-white text-base truncate">{project.name}</h1>
-          <span className="text-xs text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-0.5 rounded">
-            React App
-          </span>
+          
+          {/* Active LLM Provider Badge */}
+          {llmConfig && (
+            <span className="text-xs text-indigo-300 bg-indigo-950/80 border border-indigo-800/80 px-2.5 py-0.5 rounded flex items-center space-x-1.5" title="Provider-Agnostic LLM Engine">
+              <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="font-mono uppercase font-semibold text-[10px]">{llmConfig.provider}:</span>
+              <span>{llmConfig.modelName}</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center space-x-2">
