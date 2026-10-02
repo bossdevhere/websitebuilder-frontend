@@ -1,0 +1,166 @@
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { projectsApi, Project, ProjectFile } from "../services/api";
+import { FileExplorer } from "../components/workspace/FileExplorer";
+import { CodeEditor } from "../components/workspace/CodeEditor";
+import { ArrowLeft, Loader2, Play } from "lucide-react";
+
+export const Workspace: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const { session } = useAuth();
+  const navigate = useNavigate();
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id || !session?.access_token) return;
+
+    setLoading(true);
+    projectsApi
+      .getProjectById(session.access_token, id)
+      .then((proj) => {
+        setProject(proj);
+        if (proj.files && proj.files.length > 0) {
+          setActiveFilePath(proj.files[0].path);
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [id, session?.access_token]);
+
+  const activeFile = project?.files?.find((f) => f.path === activeFilePath) || null;
+
+  const handleSelectFile = (path: string) => {
+    setActiveFilePath(path);
+  };
+
+  const handleCreateFile = async (path: string) => {
+    if (!project || !session?.access_token) return;
+    try {
+      const newFile = await projectsApi.updateFile(session.access_token, project.id, path, "");
+      setProject((prev) => {
+        if (!prev) return prev;
+        const existing = prev.files || [];
+        return {
+          ...prev,
+          files: [...existing.filter((f) => f.path !== path), newFile],
+        };
+      });
+      setActiveFilePath(path);
+    } catch (err: any) {
+      alert("Failed to create file: " + err.message);
+    }
+  };
+
+  const handleDeleteFile = async (path: string) => {
+    if (!project || !session?.access_token) return;
+    try {
+      await projectsApi.deleteFile(session.access_token, project.id, path);
+      setProject((prev) => {
+        if (!prev) return prev;
+        const remaining = (prev.files || []).filter((f) => f.path !== path);
+        return { ...prev, files: remaining };
+      });
+      if (activeFilePath === path) {
+        const remaining = (project.files || []).filter((f) => f.path !== path);
+        setActiveFilePath(remaining.length > 0 ? remaining[0].path : null);
+      }
+    } catch (err: any) {
+      alert("Failed to delete file: " + err.message);
+    }
+  };
+
+  const handleSaveFileContent = async (content: string) => {
+    if (!project || !activeFilePath || !session?.access_token) return;
+    const updatedFile = await projectsApi.updateFile(
+      session.access_token,
+      project.id,
+      activeFilePath,
+      content
+    );
+    setProject((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        files: (prev.files || []).map((f) => (f.path === activeFilePath ? updatedFile : f)),
+      };
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh] text-slate-400 space-x-2">
+        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+        <span>Loading workspace...</span>
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 bg-slate-950 border border-slate-800 rounded-xl text-center space-y-4">
+        <p className="text-red-400">{error || "Project not found"}</p>
+        <button
+          onClick={() => navigate("/")}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-65px)]">
+      {/* Workspace Header Bar */}
+      <div className="h-12 border-b border-slate-800 bg-slate-950 px-4 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => navigate("/")}
+            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="font-bold text-white text-base truncate">{project.name}</h1>
+          <span className="text-xs text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-0.5 rounded">
+            React App
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => alert("Preview module will run in Phase 5")}
+            className="flex items-center space-x-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition-colors"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Run Preview</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Workspace Body */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left: File Explorer Sidebar */}
+        <FileExplorer
+          files={project.files || []}
+          activeFilePath={activeFilePath}
+          onSelectFile={handleSelectFile}
+          onCreateFile={handleCreateFile}
+          onDeleteFile={handleDeleteFile}
+        />
+
+        {/* Right: Monaco Code Editor */}
+        <CodeEditor
+          filePath={activeFilePath}
+          content={activeFile ? activeFile.content : ""}
+          onSave={handleSaveFileContent}
+        />
+      </div>
+    </div>
+  );
+};
