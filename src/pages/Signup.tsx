@@ -23,7 +23,8 @@ export const Signup: React.FC = () => {
     if (res.error) {
       setError(res.error);
     } else {
-      navigate("/login");
+      // Direct redirect to main dashboard upon signup
+      navigate("/");
     }
   };
 
@@ -90,7 +91,7 @@ export const Signup: React.FC = () => {
             disabled={isSubmitting}
             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
           >
-            {isSubmitting ? "Creating Account..." : "Sign Up"}
+            {isSubmitting ? "Creating Account..." : "Sign Up & Get Started"}
           </button>
         </form>
 
