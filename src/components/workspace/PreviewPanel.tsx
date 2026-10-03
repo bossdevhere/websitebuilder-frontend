@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Code, Play } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone } from "lucide-react";
 
 interface ProjectFile {
   path: string;
@@ -39,16 +39,38 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         f.path.endsWith("index.js")
     );
 
+    // Common JS Module Polyfill to prevent "exports is not defined" errors when Babel transpiles ES modules
+    const modulePolyfill = `
+      <script>
+        window.exports = {};
+        window.module = { exports: window.exports };
+        window.require = function(moduleName) {
+          if (moduleName === 'react') return window.React;
+          if (moduleName === 'react-dom' || moduleName === 'react-dom/client') return window.ReactDOM;
+          if (moduleName === 'lucide-react') return window.lucide || {};
+          return window[moduleName] || {};
+        };
+      </script>
+    `;
+
+    // React CDN Dependencies
+    const reactHeader = `
+      <script src="https://cdn.tailwindcss.com"></script>
+      <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+      <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+      <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+      ${modulePolyfill}
+    `;
+
     // If there is custom index.html content
     if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
       let html = indexHtmlFile.content;
 
-      // Inject Tailwind CDN if missing
-      if (!html.includes("cdn.tailwindcss.com")) {
-        html = html.replace(
-          "<head>",
-          `<head>\n  <script src="https://cdn.tailwindcss.com"></script>`
-        );
+      // Inject React header if missing
+      if (!html.includes("react.development.js")) {
+        html = html.replace("<head>", `<head>\n${reactHeader}`);
+      } else {
+        html = html.replace("<head>", `<head>\n${modulePolyfill}`);
       }
 
       // Inject combined CSS
@@ -59,22 +81,21 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         );
       }
 
-      // Inject React / Babel if main JS file contains JSX/TSX
+      // Inject React / Babel execution if main JS file exists
       if (mainJsFile && (mainJsFile.path.endsWith(".tsx") || mainJsFile.path.endsWith(".jsx"))) {
-        const reactHeader = `
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-        `;
-        html = html.replace("<head>", `<head>${reactHeader}`);
-
-        // Append main component render script before </body>
         const babelScript = `
   <script type="text/babel">
-    ${mainJsFile.content}
-    if (typeof App !== 'undefined') {
-      const rootElement = document.getElementById('root') || document.body;
-      ReactDOM.createRoot(rootElement).render(<App />);
+    try {
+      ${mainJsFile.content}
+      
+      const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
+      if (TargetComponent) {
+        const rootElement = document.getElementById('root') || document.body;
+        ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
+      }
+    } catch (err) {
+      console.error(err);
+      document.getElementById('root').innerHTML = '<div style="color: #f87171; padding: 20px; font-family: monospace;">Runtime Error: ' + err.message + '</div>';
     }
   </script>
         `;
@@ -94,14 +115,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preview</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  ${
-    isReact
-      ? `<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>`
-      : ""
-  }
+  ${reactHeader}
   <style>
     ${combinedCss}
   </style>
@@ -123,10 +137,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         ? `<script type="text/babel">
     try {
       ${rawJsContent}
-      if (typeof App !== 'undefined') {
+      
+      const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
+      if (TargetComponent) {
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
-        root.render(<App />);
+        root.render(React.createElement(TargetComponent));
       }
     } catch (err) {
       console.error(err);
@@ -245,7 +261,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           ref={iframeRef}
           srcDoc={generateSrcDoc()}
           title="App Live Preview"
-          sandbox="allow-scripts allow-modals allow-same-origin"
+          sandbox="allow-scripts allow-modals"
           className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}
         />
       </div>
