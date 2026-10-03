@@ -28,18 +28,23 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
     const cssFiles = files.filter((f) => f.path.endsWith(".css"));
     const combinedCss = cssFiles.map((f) => `/* ${f.path} */\n${f.content}`).join("\n\n");
 
-    // Look for App / component files
-    const mainJsFile = files.find(
-      (f) =>
-        f.path.endsWith("App.tsx") ||
-        f.path.endsWith("App.jsx") ||
-        f.path.endsWith("App.js") ||
-        f.path.endsWith("main.tsx") ||
-        f.path.endsWith("index.tsx") ||
-        f.path.endsWith("index.js")
+    // Separate component files and main App file
+    const isAppFile = (f: ProjectFile) =>
+      f.path.endsWith("App.tsx") ||
+      f.path.endsWith("App.jsx") ||
+      f.path.endsWith("App.js") ||
+      f.path.endsWith("main.tsx") ||
+      f.path.endsWith("index.tsx") ||
+      f.path.endsWith("index.js");
+
+    const mainJsFile = files.find(isAppFile);
+
+    // Other non-main TSX/JSX component files (e.g. components/Navbar.tsx)
+    const componentFiles = files.filter(
+      (f) => (f.path.endsWith(".tsx") || f.path.endsWith(".jsx") || f.path.endsWith(".js")) && !isAppFile(f)
     );
 
-    // Common JS Module Polyfill to prevent "exports is not defined" errors when Babel transpiles ES modules
+    // CommonJS Module Polyfill: Allows top-level import/export to resolve in browser via Babel
     const modulePolyfill = `
       <script>
         window.exports = {};
@@ -48,7 +53,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           if (moduleName === 'react') return window.React;
           if (moduleName === 'react-dom' || moduleName === 'react-dom/client') return window.ReactDOM;
           if (moduleName === 'lucide-react') return window.lucide || {};
-          return window[moduleName] || {};
+          return window.exports;
         };
       </script>
     `;
@@ -60,6 +65,30 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
       <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
       ${modulePolyfill}
+    `;
+
+    // Build component scripts outside of try/catch blocks so import/export statements remain at top-level
+    const componentScriptsHtml = componentFiles
+      .map((f) => `<script type="text/babel">\n/* ${f.path} */\n${f.content}\n</script>`)
+      .join("\n");
+
+    const mainScriptHtml = mainJsFile
+      ? `<script type="text/babel">\n/* ${mainJsFile.path} */\n${mainJsFile.content}\n</script>`
+      : "";
+
+    const mountRenderScript = `
+      <script type="text/babel">
+        try {
+          const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
+          if (TargetComponent) {
+            const rootElement = document.getElementById('root') || document.body;
+            ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
+          }
+        } catch (err) {
+          console.error(err);
+          document.getElementById('root').innerHTML = '<div style="color: #f87171; padding: 20px; font-family: monospace;">Runtime Error: ' + err.message + '</div>';
+        }
+      </script>
     `;
 
     // If there is custom index.html content
@@ -81,34 +110,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         );
       }
 
-      // Inject React / Babel execution if main JS file exists
-      if (mainJsFile && (mainJsFile.path.endsWith(".tsx") || mainJsFile.path.endsWith(".jsx"))) {
-        const babelScript = `
-  <script type="text/babel">
-    try {
-      ${mainJsFile.content}
-      
-      const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
-      if (TargetComponent) {
-        const rootElement = document.getElementById('root') || document.body;
-        ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
-      }
-    } catch (err) {
-      console.error(err);
-      document.getElementById('root').innerHTML = '<div style="color: #f87171; padding: 20px; font-family: monospace;">Runtime Error: ' + err.message + '</div>';
-    }
-  </script>
-        `;
-        html = html.replace("</body>", `${babelScript}\n</body>`);
-      }
+      // Append component scripts, main script, and mount script before </body>
+      const allScripts = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
+      html = html.replace("</body>", `${allScripts}\n</body>`);
 
       return html;
     }
 
     // Default Fallback Template with Tailwind, React & Babel support
-    const rawJsContent = mainJsFile ? mainJsFile.content : "";
-    const isReact = mainJsFile && (mainJsFile.path.endsWith(".tsx") || mainJsFile.path.endsWith(".jsx"));
-
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,33 +140,9 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
     }
   </div>
 
-  ${
-    mainJsFile
-      ? isReact
-        ? `<script type="text/babel">
-    try {
-      ${rawJsContent}
-      
-      const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
-      if (TargetComponent) {
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(TargetComponent));
-      }
-    } catch (err) {
-      console.error(err);
-      document.getElementById('root').innerHTML = '<div style="color: #f87171; padding: 20px; font-family: monospace;">Runtime Error: ' + err.message + '</div>';
-    }
-  </script>`
-        : `<script>
-    try {
-      ${rawJsContent}
-    } catch (err) {
-      console.error(err);
-    }
-  </script>`
-      : ""
-  }
+  ${componentScriptsHtml}
+  ${mainScriptHtml}
+  ${mountRenderScript}
 </body>
 </html>`;
   };
