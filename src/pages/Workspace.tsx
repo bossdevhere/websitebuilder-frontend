@@ -5,12 +5,15 @@ import { projectsApi, Project } from "../services/api";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
-import { ArrowLeft, Loader2, Play, Cpu } from "lucide-react";
+import { PreviewPanel } from "../components/workspace/PreviewPanel";
+import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Columns } from "lucide-react";
 
 interface LLMConfigInfo {
   provider: string;
   modelName: string;
 }
+
+type ViewMode = "code" | "preview" | "split";
 
 export const Workspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +25,7 @@ export const Workspace: React.FC = () => {
   const [llmConfig, setLlmConfig] = useState<LLMConfigInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
 
   const fetchProjectData = async () => {
     if (!id || !session?.access_token) return;
@@ -169,9 +173,49 @@ export const Workspace: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* View Mode Toggle Controls */}
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("code")}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewMode === "code"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+              title="Code Editor Only"
+            >
+              <Code className="w-3.5 h-3.5" />
+              <span>Code</span>
+            </button>
+            <button
+              onClick={() => setViewMode("split")}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewMode === "split"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+              title="Split View (Editor + Live Preview)"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>Split</span>
+            </button>
+            <button
+              onClick={() => setViewMode("preview")}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                viewMode === "preview"
+                  ? "bg-indigo-600 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+              title="Live Preview Only"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Preview</span>
+            </button>
+          </div>
+
           <button
-            onClick={() => alert("Preview module will run in Phase 5")}
+            onClick={() => setViewMode("preview")}
             className="flex items-center space-x-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition-colors"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
@@ -198,12 +242,22 @@ export const Workspace: React.FC = () => {
           onDeleteFile={handleDeleteFile}
         />
 
-        {/* Right: Monaco Code Editor */}
-        <CodeEditor
-          filePath={activeFilePath}
-          content={activeFile ? activeFile.content : ""}
-          onSave={handleSaveFileContent}
-        />
+        {/* Right Pane(s): Monaco Code Editor & Interactive PreviewPanel */}
+        {(viewMode === "code" || viewMode === "split") && (
+          <div className={viewMode === "split" ? "w-1/2 flex flex-col" : "flex-1 flex flex-col"}>
+            <CodeEditor
+              filePath={activeFilePath}
+              content={activeFile ? activeFile.content : ""}
+              onSave={handleSaveFileContent}
+            />
+          </div>
+        )}
+
+        {(viewMode === "preview" || viewMode === "split") && (
+          <div className={viewMode === "split" ? "w-1/2 flex flex-col" : "flex-1 flex flex-col"}>
+            <PreviewPanel files={project.files || []} activeFilePath={activeFilePath} />
+          </div>
+        )}
       </div>
     </div>
   );

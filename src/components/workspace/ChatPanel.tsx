@@ -52,10 +52,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
   useEffect(() => {
     if (!projectId || !token) return;
 
-    // Use EventSource or SSE polling
-    const sseUrl = `/api/agent/projects/${projectId}/stream`;
+    // Use EventSource with token query parameter for authorization
+    const sseUrl = `/api/agent/projects/${projectId}/stream?token=${encodeURIComponent(token)}`;
 
-    // Note: Standard EventSource does not support custom headers directly, so we use EventSource or fetch reader
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
