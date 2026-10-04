@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal } from "lucide-react";
 
-export interface Message {
+interface Message {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant";
   content: string;
-  created_at?: string;
+  created_at: string;
 }
 
 interface ChatPanelProps {
@@ -20,19 +20,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat history to bottom
+  // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, agentLogs, agentStatus]);
+  }, [messages, agentStatus, agentLogs]);
 
-  // Fetch chat message history
+  // Load existing chat history
   useEffect(() => {
     if (!projectId || !token) return;
 
@@ -54,7 +53,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
 
     // Use EventSource with token query parameter for authorization
     const sseUrl = `/api/agent/projects/${projectId}/stream?token=${encodeURIComponent(token)}`;
-
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -69,10 +67,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       setAgentStatus(data.message || data.status);
       if (data.logs) setAgentLogs(data.logs);
 
-      if (data.status === "done") {
+      // Reset processing lock when agent is done or errors out
+      if (data.status === "done" || data.status === "error") {
         setIsProcessing(false);
         setAgentStatus(null);
-        // Refresh chat messages
+
+        // Refresh chat messages from server
         fetch(`/api/agent/projects/${projectId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -114,6 +114,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     };
     setMessages((prev) => [...prev, tempUserMsg]);
 
+    // 30-second safety fallback timeout to prevent UI locking
+    const timeoutId = setTimeout(() => {
+      setIsProcessing(false);
+      setAgentStatus(null);
+    }, 30000);
+
     try {
       const res = await fetch(`/api/agent/projects/${projectId}/prompt`, {
         method: "POST",
@@ -125,10 +131,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       });
 
       if (!res.ok) {
+        clearTimeout(timeoutId);
         const errData = await res.json();
         throw new Error(errData.error || "Failed to trigger agent");
       }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       alert("Error sending prompt: " + err.message);
       setIsProcessing(false);
       setAgentStatus(null);
@@ -175,7 +183,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
             </div>
 
             <div
-              className={`max-w-[82%] px-3.5 py-2.5 rounded-xl text-xs leading-relaxed ${
+              className={`max-w-[82%] px-3.5 py-2.5 rounded-xl text-xs leading-relaxed whitespace-pre-wrap ${
                 msg.role === "user"
                   ? "bg-indigo-600 text-white rounded-tr-none"
                   : "bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none"
@@ -217,16 +225,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
             type="text"
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            disabled={isProcessing}
-            placeholder={isProcessing ? "AI Agent generating code..." : "Describe what to build..."}
-            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+            placeholder={isProcessing ? "AI Agent thinking..." : "Describe what to build..."}
+            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
           <button
             type="submit"
             disabled={!inputPrompt.trim() || isProcessing}
             className="absolute right-2 p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-lg transition-colors"
           >
-            <Send className="w-3.5 h-3.5" />
+            {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
         </div>
       </form>
