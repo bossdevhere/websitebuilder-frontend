@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare } from "lucide-react";
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare, AlertTriangle } from "lucide-react";
 
 interface Conversation {
   id: string;
@@ -29,7 +29,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
+  const [uiError, setUiError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -47,6 +49,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       const res = await fetch(`/api/projects/${projectId}/conversations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error("Unable to load conversations");
       const data = await res.json();
       if (data.conversations && data.conversations.length > 0) {
         setConversations(data.conversations);
@@ -54,8 +57,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
           setActiveConversationId(data.conversations[0].id);
         }
       }
-    } catch (err) {
-      console.error("Failed to load conversations:", err);
+    } catch (err: any) {
+      console.warn("Conversations API fallback:", err.message);
     }
   };
 
@@ -70,18 +73,38 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       const res = await fetch(`/api/projects/${projectId}/conversations/${convId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
       if (data.messages) {
         setMessages(data.messages);
       }
-    } catch (err) {
-      console.error("Failed to load conversation messages:", err);
+    } catch (err: any) {
+      console.warn("Message fetch fallback:", err.message);
+      // Fallback to legacy project chat endpoint
+      fetch(`/api/agent/projects/${projectId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.messages) setMessages(d.messages);
+        })
+        .catch(() => {});
     }
   };
 
   useEffect(() => {
     if (activeConversationId) {
       fetchMessages(activeConversationId);
+    } else if (projectId && token) {
+      // Fallback load
+      fetch(`/api/agent/projects/${projectId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.messages) setMessages(d.messages);
+        })
+        .catch(() => {});
     }
   }, [activeConversationId, projectId, token]);
 
@@ -127,6 +150,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
 
   const handleCreateNewChat = async () => {
     if (!projectId || !token) return;
+    setUiError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/conversations`, {
         method: "POST",
@@ -136,21 +160,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
         },
         body: JSON.stringify({ title: `Chat ${conversations.length + 1}` }),
       });
+      if (!res.ok) throw new Error("Conversation creation failed");
       const data = await res.json();
       if (data.conversation) {
         setConversations((prev) => [data.conversation, ...prev]);
         setActiveConversationId(data.conversation.id);
         setMessages([]);
       }
-    } catch (err) {
-      console.error("Failed to create conversation:", err);
+    } catch (err: any) {
+      setUiError("Conversation could not be created.");
     }
   };
 
-  const handleSubmitPrompt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputPrompt.trim() || isProcessing || !activeConversationId) return;
+  const handleSubmitPrompt = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!inputPrompt.trim() || isProcessing) return;
 
+    setUiError(null);
     const userText = inputPrompt.trim();
     setInputPrompt("");
     setIsProcessing(true);
@@ -169,22 +195,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     const timeoutId = setTimeout(() => {
       setIsProcessing(false);
       setAgentStatus(null);
-    }, 30000);
+    }, 45000);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/conversations/${activeConversationId}/messages`, {
+      // Determine endpoint: conversation message endpoint or prompt fallback endpoint
+      let url = `/api/agent/projects/${projectId}/prompt`;
+      if (activeConversationId) {
+        url = `/api/projects/${projectId}/conversations/${activeConversationId}/messages`;
+      }
+
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content: userText }),
+        body: JSON.stringify({ content: userText, prompt: userText }),
       });
 
       if (!res.ok) {
         clearTimeout(timeoutId);
         const errData = await res.json();
-        throw new Error(errData.error || "Failed to trigger agent");
+        throw new Error(errData.error || "Agent execution failed");
       }
 
       const data = await res.json();
@@ -192,14 +224,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       setIsProcessing(false);
       setAgentStatus(null);
 
-      if (data.message) {
+      if (activeConversationId) {
         fetchMessages(activeConversationId);
+      } else {
+        fetchConversations();
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
-      alert("Error sending prompt: " + err.message);
+      setUiError(err.message || "Unable to connect to AI backend.");
       setIsProcessing(false);
       setAgentStatus(null);
+    }
+  };
+
+  // Keyboard handler: Enter submits, Shift+Enter creates a new line
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmitPrompt();
     }
   };
 
@@ -225,7 +267,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       </div>
 
       {/* Persistent Conversation Threads List */}
-      {conversations.length > 1 && (
+      {conversations.length > 0 && (
         <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center space-x-1 overflow-x-auto no-scrollbar">
           {conversations.map((c) => (
             <button
@@ -244,6 +286,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
         </div>
       )}
 
+      {/* Error Banner */}
+      {uiError && (
+        <div className="m-3 p-2.5 bg-red-950/80 border border-red-800/80 rounded-lg text-xs text-red-300 flex items-center space-x-2">
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+          <span>{uiError}</span>
+        </div>
+      )}
+
       {/* Messages Feed */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && !isProcessing && (
@@ -251,7 +301,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
             <Bot className="w-8 h-8 text-indigo-400 mx-auto" />
             <p className="text-xs font-medium text-white">Ask AI to build or modify code</p>
             <p className="text-[11px] text-slate-400">
-              e.g. "Add a navigation bar" or "Create a Counter component with increment and decrement buttons"
+              e.g. "Add a landing page for a coffee shop" or "Make the hero section dark blue with Tailwind"
             </p>
           </div>
         )}
@@ -309,20 +359,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Prompt Input Form */}
-      <form onSubmit={handleSubmitPrompt} className="p-3 border-t border-slate-800 bg-slate-950">
-        <div className="relative flex items-center">
-          <input
-            type="text"
+      {/* Prompt Input Form (Multiline Textarea: Enter to submit, Shift+Enter for newline) */}
+      <form onSubmit={(e) => handleSubmitPrompt(e)} className="p-3 border-t border-slate-800 bg-slate-950">
+        <div className="relative flex items-end">
+          <textarea
+            ref={textareaRef}
+            rows={2}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            placeholder={isProcessing ? "AI Agent thinking..." : "Describe what to build..."}
-            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            onKeyDown={handleKeyDown}
+            placeholder={isProcessing ? "AI Agent thinking..." : "Describe what to build... (Enter to send, Shift+Enter for new line)"}
+            className="w-full pl-3.5 pr-10 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none min-h-[50px] max-h-32"
           />
           <button
             type="submit"
-            disabled={!inputPrompt.trim() || isProcessing || !activeConversationId}
-            className="absolute right-2 p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-lg transition-colors"
+            disabled={!inputPrompt.trim() || isProcessing}
+            className="absolute right-2 bottom-2.5 p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-lg transition-colors"
           >
             {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
