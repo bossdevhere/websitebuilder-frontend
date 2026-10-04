@@ -75,18 +75,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       });
       if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
-      if (data.messages) {
+      if (data.messages && data.messages.length > 0) {
         setMessages(data.messages);
       }
     } catch (err: any) {
       console.warn("Message fetch fallback:", err.message);
-      // Fallback to legacy project chat endpoint
       fetch(`/api/agent/projects/${projectId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => r.json())
         .then((d) => {
-          if (d.messages) setMessages(d.messages);
+          if (d.messages && d.messages.length > 0) setMessages(d.messages);
         })
         .catch(() => {});
     }
@@ -96,13 +95,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     if (activeConversationId) {
       fetchMessages(activeConversationId);
     } else if (projectId && token) {
-      // Fallback load
       fetch(`/api/agent/projects/${projectId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => r.json())
         .then((d) => {
-          if (d.messages) setMessages(d.messages);
+          if (d.messages && d.messages.length > 0) setMessages(d.messages);
         })
         .catch(() => {});
     }
@@ -130,9 +128,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       if (data.status === "done" || data.status === "error") {
         setIsProcessing(false);
         setAgentStatus(null);
-        if (activeConversationId) {
-          fetchMessages(activeConversationId);
-        }
       }
     });
 
@@ -198,7 +193,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     }, 45000);
 
     try {
-      // Determine endpoint: conversation message endpoint or prompt fallback endpoint
       let url = `/api/agent/projects/${projectId}/prompt`;
       if (activeConversationId) {
         url = `/api/projects/${projectId}/conversations/${activeConversationId}/messages`;
@@ -224,10 +218,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       setIsProcessing(false);
       setAgentStatus(null);
 
-      if (activeConversationId) {
-        fetchMessages(activeConversationId);
-      } else {
-        fetchConversations();
+      // Append returned user & assistant messages directly into UI state so they NEVER disappear
+      if (data.message) {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+          const finalUserMsg = data.userMessage || tempUserMsg;
+          return [...filtered, finalUserMsg, data.message];
+        });
       }
     } catch (err: any) {
       clearTimeout(timeoutId);

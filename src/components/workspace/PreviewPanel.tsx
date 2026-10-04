@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone } from "lucide-react";
 
 interface ProjectFile {
@@ -19,7 +19,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   const [iframeKey, setIframeKey] = useState<number>(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Generate self-contained sandboxed HTML doc as fallback
+  // Auto-refresh iframe when project files change
+  useEffect(() => {
+    setIframeKey((prev) => prev + 1);
+  }, [files]);
+
+  // Generate self-contained sandboxed HTML doc with Babel Standalone & React UMD
   const generateSrcDoc = (): string => {
     const indexHtmlFile = files.find(
       (f) => f.path === "index.html" || f.path === "/index.html" || f.path.endsWith("/index.html")
@@ -46,10 +51,17 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
       <script>
         window.exports = {};
         window.module = { exports: window.exports };
+        window.componentRegistry = {};
+        
         window.require = function(moduleName) {
           if (moduleName === 'react') return window.React;
           if (moduleName === 'react-dom' || moduleName === 'react-dom/client') return window.ReactDOM;
           if (moduleName === 'lucide-react') return window.lucide || {};
+          
+          const cleanName = moduleName.replace(/^\\.\\//, '').replace(/^\\.\\.\\//, '');
+          if (window.componentRegistry[cleanName]) {
+            return window.componentRegistry[cleanName];
+          }
           return window.exports;
         };
       </script>
@@ -63,21 +75,52 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
       ${modulePolyfill}
     `;
 
-    const componentScriptsHtml = componentFiles
-      .map((f) => `<script type="text/babel">\n/* ${f.path} */\n${f.content}\n</script>`)
-      .join("\n");
+    const wrapComponentScript = (file: ProjectFile) => `
+      <script type="text/babel">
+        (function() {
+          var exports = {};
+          var module = { exports: exports };
+          try {
+            ${file.content}
+            var exported = module.exports.default || module.exports.App || exports.default || exports.App || (typeof App !== 'undefined' ? App : null);
+            if (exported) {
+              var pathKey = "${file.path.replace(/\.[^/.]+$/, "")}";
+              window.componentRegistry[pathKey] = { default: exported, App: exported };
+              window.componentRegistry["./" + pathKey] = { default: exported, App: exported };
+              window.componentRegistry["../" + pathKey] = { default: exported, App: exported };
+              if (!window.exports.default && !window.exports.App) {
+                window.exports.default = exported;
+                window.exports.App = exported;
+              }
+            }
+          } catch (err) {
+            console.error("Error evaluating ${file.path}:", err);
+          }
+        })();
+      </script>
+    `;
 
-    const mainScriptHtml = mainJsFile
-      ? `<script type="text/babel">\n/* ${mainJsFile.path} */\n${mainJsFile.content}\n</script>`
-      : "";
+    const componentScriptsHtml = componentFiles.map(wrapComponentScript).join("\n");
+    const mainScriptHtml = mainJsFile ? wrapComponentScript(mainJsFile) : "";
 
     const mountRenderScript = `
       <script type="text/babel">
         try {
-          const TargetComponent = window.exports.default || window.exports.App || (typeof App !== 'undefined' ? App : null);
+          let TargetComponent = window.exports.default || window.exports.App;
+          if (!TargetComponent && typeof App !== 'undefined') {
+            TargetComponent = App;
+          }
+          if (!TargetComponent) {
+            const keys = Object.keys(window.componentRegistry);
+            if (keys.length > 0) {
+              TargetComponent = window.componentRegistry[keys[0]].default;
+            }
+          }
           if (TargetComponent) {
             const rootElement = document.getElementById('root') || document.body;
             ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
+          } else {
+            document.getElementById('root').innerHTML = '<div style="padding: 2rem; font-family: sans-serif; color: #94a3b8; text-align: center;"><h2 style="font-size: 1.25rem; font-weight: 600; color: #818cf8; margin-bottom: 0.5rem;">Web Application Preview</h2><p>Your workspace is ready. Ask the AI assistant on the left to create components!</p></div>';
           }
         } catch (err) {
           console.error(err);
@@ -120,16 +163,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-  <div id="root">
-    ${
-      !mainJsFile
-        ? `<div class="flex items-center justify-center min-h-screen text-slate-400 font-sans">
-            <p>No previewable index.html or App component found.</p>
-          </div>`
-        : ""
-    }
-  </div>
-
+  <div id="root"></div>
   ${componentScriptsHtml}
   ${mainScriptHtml}
   ${mountRenderScript}
@@ -175,11 +209,9 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
           <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider px-2">
             Live Preview
           </span>
-          {previewUrl && (
-            <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 px-2 py-0.5 rounded font-mono">
-              Live Dev Server
-            </span>
-          )}
+          <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 px-2 py-0.5 rounded font-mono">
+            Live Sandboxed Engine
+          </span>
         </div>
 
         {/* Viewport Modes */}
@@ -243,8 +275,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
         <iframe
           key={iframeKey}
           ref={iframeRef}
-          src={previewUrl || undefined}
-          srcDoc={!previewUrl ? generateSrcDoc() : undefined}
+          srcDoc={generateSrcDoc()}
           title="App Live Preview"
           sandbox="allow-scripts allow-modals allow-same-origin"
           className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}
