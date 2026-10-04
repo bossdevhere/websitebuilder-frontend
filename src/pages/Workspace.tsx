@@ -255,7 +255,11 @@ export const Workspace: React.FC = () => {
 
         {(viewMode === "preview" || viewMode === "split") && (
           <div className={viewMode === "split" ? "w-1/2 flex flex-col" : "flex-1 flex flex-col"}>
-            <PreviewPanel files={project.files || []} activeFilePath={activeFilePath} />
+            <PreviewPanel
+              files={project.files || []}
+              activeFilePath={activeFilePath}
+              previewUrl={`/api/runtime/projects/${project.id}/preview`}
+            />
           </div>
         )}
       </div>

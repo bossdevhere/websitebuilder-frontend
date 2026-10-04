@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal } from "lucide-react";
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare } from "lucide-react";
+
+interface Conversation {
+  id: string;
+  project_id: string;
+  title: string;
+  updated_at: string;
+}
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   created_at: string;
 }
@@ -15,6 +22,8 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUpdated }) => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -31,27 +40,55 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     scrollToBottom();
   }, [messages, agentStatus, agentLogs]);
 
-  // Load existing chat history
-  useEffect(() => {
+  // Load persistent conversations for the project
+  const fetchConversations = async () => {
     if (!projectId || !token) return;
-
-    fetch(`/api/agent/projects/${projectId}/messages`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.messages) {
-          setMessages(data.messages);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.conversations && data.conversations.length > 0) {
+        setConversations(data.conversations);
+        if (!activeConversationId) {
+          setActiveConversationId(data.conversations[0].id);
         }
-      })
-      .catch((err) => console.error("Failed to load chat messages:", err));
+      }
+    } catch (err) {
+      console.error("Failed to load conversations:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
   }, [projectId, token]);
+
+  // Load messages whenever activeConversationId changes
+  const fetchMessages = async (convId: string) => {
+    if (!projectId || !token || !convId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/conversations/${convId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(data.messages);
+      }
+    } catch (err) {
+      console.error("Failed to load conversation messages:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeConversationId) {
+      fetchMessages(activeConversationId);
+    }
+  }, [activeConversationId, projectId, token]);
 
   // Connect Server-Sent Events (SSE) Stream
   useEffect(() => {
     if (!projectId || !token) return;
 
-    // Use EventSource with token query parameter for authorization
     const sseUrl = `/api/agent/projects/${projectId}/stream?token=${encodeURIComponent(token)}`;
     const eventSource = new EventSource(sseUrl);
 
@@ -67,19 +104,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       setAgentStatus(data.message || data.status);
       if (data.logs) setAgentLogs(data.logs);
 
-      // Reset processing lock when agent is done or errors out
       if (data.status === "done" || data.status === "error") {
         setIsProcessing(false);
         setAgentStatus(null);
-
-        // Refresh chat messages from server
-        fetch(`/api/agent/projects/${projectId}/messages`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => res.json())
-          .then((msgData) => {
-            if (msgData.messages) setMessages(msgData.messages);
-          });
+        if (activeConversationId) {
+          fetchMessages(activeConversationId);
+        }
       }
     });
 
@@ -93,11 +123,33 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     return () => {
       eventSource.close();
     };
-  }, [projectId, token, onFileUpdated]);
+  }, [projectId, token, activeConversationId, onFileUpdated]);
+
+  const handleCreateNewChat = async () => {
+    if (!projectId || !token) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/conversations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: `Chat ${conversations.length + 1}` }),
+      });
+      const data = await res.json();
+      if (data.conversation) {
+        setConversations((prev) => [data.conversation, ...prev]);
+        setActiveConversationId(data.conversation.id);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+    }
+  };
 
   const handleSubmitPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputPrompt.trim() || isProcessing) return;
+    if (!inputPrompt.trim() || isProcessing || !activeConversationId) return;
 
     const userText = inputPrompt.trim();
     setInputPrompt("");
@@ -114,26 +166,34 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
     };
     setMessages((prev) => [...prev, tempUserMsg]);
 
-    // 30-second safety fallback timeout to prevent UI locking
     const timeoutId = setTimeout(() => {
       setIsProcessing(false);
       setAgentStatus(null);
     }, 30000);
 
     try {
-      const res = await fetch(`/api/agent/projects/${projectId}/prompt`, {
+      const res = await fetch(`/api/projects/${projectId}/conversations/${activeConversationId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ prompt: userText }),
+        body: JSON.stringify({ content: userText }),
       });
 
       if (!res.ok) {
         clearTimeout(timeoutId);
         const errData = await res.json();
         throw new Error(errData.error || "Failed to trigger agent");
+      }
+
+      const data = await res.json();
+      clearTimeout(timeoutId);
+      setIsProcessing(false);
+      setAgentStatus(null);
+
+      if (data.message) {
+        fetchMessages(activeConversationId);
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
@@ -145,13 +205,44 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
 
   return (
     <div className="w-80 bg-slate-950 border-r border-slate-800 flex flex-col h-full select-none">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center space-x-2">
-        <Sparkles className="w-4 h-4 text-indigo-400" />
-        <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          AI Agent Assistant
-        </span>
+      {/* Header & New Chat Button */}
+      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Sparkles className="w-4 h-4 text-indigo-400" />
+          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+            AI Agent Assistant
+          </span>
+        </div>
+
+        <button
+          onClick={handleCreateNewChat}
+          className="flex items-center space-x-1 text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded transition-colors"
+          title="Create New Conversation Thread"
+        >
+          <Plus className="w-3 h-3" />
+          <span>New Chat</span>
+        </button>
       </div>
+
+      {/* Persistent Conversation Threads List */}
+      {conversations.length > 1 && (
+        <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center space-x-1 overflow-x-auto no-scrollbar">
+          {conversations.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActiveConversationId(c.id)}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
+                activeConversationId === c.id
+                  ? "bg-indigo-600 text-white font-medium"
+                  : "bg-slate-950 text-slate-400 hover:text-white border border-slate-800"
+              }`}
+            >
+              <MessageSquare className="w-3 h-3" />
+              <span>{c.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Messages Feed */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -230,7 +321,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
           />
           <button
             type="submit"
-            disabled={!inputPrompt.trim() || isProcessing}
+            disabled={!inputPrompt.trim() || isProcessing || !activeConversationId}
             className="absolute right-2 p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-lg transition-colors"
           >
             {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

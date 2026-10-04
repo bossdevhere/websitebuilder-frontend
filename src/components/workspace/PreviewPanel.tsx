@@ -9,18 +9,18 @@ interface ProjectFile {
 interface PreviewPanelProps {
   files: ProjectFile[];
   activeFilePath?: string | null;
+  previewUrl?: string | null;
 }
 
 type ViewportMode = "desktop" | "tablet" | "mobile";
 
-export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
+export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>("desktop");
   const [iframeKey, setIframeKey] = useState<number>(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Generate self-contained sandboxed HTML doc
+  // Generate self-contained sandboxed HTML doc as fallback
   const generateSrcDoc = (): string => {
-    // Look for explicit index.html first
     const indexHtmlFile = files.find(
       (f) => f.path === "index.html" || f.path === "/index.html" || f.path.endsWith("/index.html")
     );
@@ -28,7 +28,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
     const cssFiles = files.filter((f) => f.path.endsWith(".css"));
     const combinedCss = cssFiles.map((f) => `/* ${f.path} */\n${f.content}`).join("\n\n");
 
-    // Separate component files and main App file
     const isAppFile = (f: ProjectFile) =>
       f.path.endsWith("App.tsx") ||
       f.path.endsWith("App.jsx") ||
@@ -39,12 +38,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
 
     const mainJsFile = files.find(isAppFile);
 
-    // Other non-main TSX/JSX component files (e.g. components/Navbar.tsx)
     const componentFiles = files.filter(
       (f) => (f.path.endsWith(".tsx") || f.path.endsWith(".jsx") || f.path.endsWith(".js")) && !isAppFile(f)
     );
 
-    // CommonJS Module Polyfill: Allows top-level import/export to resolve in browser via Babel
     const modulePolyfill = `
       <script>
         window.exports = {};
@@ -58,7 +55,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       </script>
     `;
 
-    // React CDN Dependencies
     const reactHeader = `
       <script src="https://cdn.tailwindcss.com"></script>
       <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -67,7 +63,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       ${modulePolyfill}
     `;
 
-    // Build component scripts outside of try/catch blocks so import/export statements remain at top-level
     const componentScriptsHtml = componentFiles
       .map((f) => `<script type="text/babel">\n/* ${f.path} */\n${f.content}\n</script>`)
       .join("\n");
@@ -91,18 +86,15 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       </script>
     `;
 
-    // If there is custom index.html content
     if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
       let html = indexHtmlFile.content;
 
-      // Inject React header if missing
       if (!html.includes("react.development.js")) {
         html = html.replace("<head>", `<head>\n${reactHeader}`);
       } else {
         html = html.replace("<head>", `<head>\n${modulePolyfill}`);
       }
 
-      // Inject combined CSS
       if (combinedCss.trim().length > 0) {
         html = html.replace(
           "</head>",
@@ -110,14 +102,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         );
       }
 
-      // Append component scripts, main script, and mount script before </body>
       const allScripts = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
       html = html.replace("</body>", `${allScripts}\n</body>`);
 
       return html;
     }
 
-    // Default Fallback Template with Tailwind, React & Babel support
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -152,6 +142,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
   };
 
   const handleOpenNewTab = () => {
+    if (previewUrl) {
+      window.open(previewUrl, "_blank");
+      return;
+    }
     const srcDoc = generateSrcDoc();
     const win = window.open();
     if (win) {
@@ -181,6 +175,11 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider px-2">
             Live Preview
           </span>
+          {previewUrl && (
+            <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 px-2 py-0.5 rounded font-mono">
+              Live Dev Server
+            </span>
+          )}
         </div>
 
         {/* Viewport Modes */}
@@ -244,9 +243,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         <iframe
           key={iframeKey}
           ref={iframeRef}
-          srcDoc={generateSrcDoc()}
+          src={previewUrl || undefined}
+          srcDoc={!previewUrl ? generateSrcDoc() : undefined}
           title="App Live Preview"
-          sandbox="allow-scripts allow-modals"
+          sandbox="allow-scripts allow-modals allow-same-origin"
           className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}
         />
       </div>
