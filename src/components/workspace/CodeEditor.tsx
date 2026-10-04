@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import { Save, Check, FileCode } from "lucide-react";
 
@@ -12,10 +12,18 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
   const [editorValue, setEditorValue] = useState(content);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const editorValueRef = useRef(editorValue);
 
   useEffect(() => {
     setEditorValue(content);
+    editorValueRef.current = content;
   }, [filePath, content]);
+
+  const handleEditorChange = (val: string | undefined) => {
+    const v = val || "";
+    setEditorValue(v);
+    editorValueRef.current = v;
+  };
 
   if (!filePath) {
     return (
@@ -39,7 +47,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
     setIsSaving(true);
     setSavedSuccess(false);
     try {
-      await onSave(editorValue);
+      await onSave(editorValueRef.current);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2000);
     } catch (err) {
@@ -64,6 +72,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
           onClick={handleSaveClick}
           disabled={isSaving}
           className="flex items-center space-x-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-1 rounded transition-colors"
+          title="Save file (Cmd+S / Ctrl+S)"
         >
           {savedSuccess ? (
             <>
@@ -73,7 +82,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
           ) : (
             <>
               <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? "Saving..." : "Save"}</span>
+              <span>{isSaving ? "Saving..." : "Save (Cmd+S)"}</span>
             </>
           )}
         </button>
@@ -86,7 +95,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
           language={getLanguage(filePath)}
           theme="vs-dark"
           value={editorValue}
-          onChange={(val) => setEditorValue(val || "")}
+          onChange={handleEditorChange}
+          onMount={(editor, monaco) => {
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+              handleSaveClick();
+            });
+          }}
           options={{
             fontSize: 14,
             minimap: { enabled: false },
