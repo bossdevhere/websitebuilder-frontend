@@ -218,6 +218,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       setIsProcessing(false);
       setAgentStatus(null);
 
+      // Trigger file updates in React workspace state for returned changes
+      const changes = data.changes || data.fileChanges || [];
+      if (Array.isArray(changes) && onFileUpdated) {
+        changes.forEach((change: { path: string; content: string }) => {
+          if (change.path && change.content) {
+            onFileUpdated(change.path, change.content);
+          }
+        });
+      }
+
       // Append returned user & assistant messages directly into UI state so they NEVER disappear
       if (data.message) {
         setMessages((prev) => {
