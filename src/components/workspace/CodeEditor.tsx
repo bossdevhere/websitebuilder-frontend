@@ -97,6 +97,28 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
           value={editorValue}
           onChange={handleEditorChange}
           onMount={(editor, monaco) => {
+            // Configure TypeScript / JavaScript compiler & diagnostic options for React JSX
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+              jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+              target: monaco.languages.typescript.ScriptTarget.Latest,
+              allowNonTsExtensions: true,
+              moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+              module: monaco.languages.typescript.ModuleKind.CommonJS,
+              noEmit: true,
+              esModuleInterop: true,
+              allowJs: true,
+            });
+
+            monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+              noSemanticValidation: true,
+              noSyntaxValidation: false,
+            });
+
+            monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+              noSemanticValidation: true,
+              noSyntaxValidation: false,
+            });
+
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
               handleSaveClick();
             });
