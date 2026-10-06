@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone } from "lucide-react";
+import * as Babel from "@babel/standalone";
 
 interface ProjectFile {
   path: string;
@@ -26,170 +27,199 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
 
   // Generate self-contained sandboxed HTML doc with Babel Standalone & React UMD
   const generateSrcDoc = (): string => {
-    const indexHtmlFile = files.find(
-      (f) => f.path === "index.html" || f.path === "/index.html" || f.path.endsWith("/index.html")
-    );
+    try {
+      const indexHtmlFile = files.find(
+        (f) => f.path === "index.html" || f.path === "/index.html" || f.path.endsWith("/index.html")
+      );
 
-    const cssFiles = files.filter((f) => f.path.endsWith(".css"));
-    const combinedCss = cssFiles.map((f) => `/* ${f.path} */\n${f.content}`).join("\n\n");
+      const cssFiles = files.filter((f) => f.path.endsWith(".css"));
+      const combinedCss = cssFiles.map((f) => `/* ${f.path} */\n${f.content}`).join("\n\n");
 
-    const isAppFile = (f: ProjectFile) =>
-      f.path.endsWith("App.tsx") ||
-      f.path.endsWith("App.jsx") ||
-      f.path.endsWith("App.js") ||
-      f.path.endsWith("main.tsx") ||
-      f.path.endsWith("index.tsx") ||
-      f.path.endsWith("index.js");
+      const isAppFile = (f: ProjectFile) =>
+        f.path.endsWith("App.tsx") ||
+        f.path.endsWith("App.jsx") ||
+        f.path.endsWith("App.js") ||
+        f.path.endsWith("main.tsx") ||
+        f.path.endsWith("index.tsx") ||
+        f.path.endsWith("index.js");
 
-    const mainJsFile = files.find(isAppFile);
+      const mainJsFile = files.find(isAppFile);
 
-    const componentFiles = files.filter(
-      (f) => (f.path.endsWith(".tsx") || f.path.endsWith(".jsx") || f.path.endsWith(".js")) && !isAppFile(f)
-    );
+      const componentFiles = files.filter(
+        (f) => (f.path.endsWith(".tsx") || f.path.endsWith(".jsx") || f.path.endsWith(".js")) && !isAppFile(f)
+      );
 
-    const modulePolyfill = `
-      <script>
-        window.exports = {};
-        window.module = { exports: window.exports };
-        window.componentRegistry = {};
-        
-        window.require = function(moduleName) {
-          if (moduleName === 'react') {
-            var R = window.React || {};
-            return Object.assign({ default: R }, R);
-          }
-          if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
-            var RD = window.ReactDOM || {};
-            return Object.assign({ default: RD }, RD);
-          }
-          if (moduleName === 'lucide-react') {
-            var L = window.lucide || {};
-            if (typeof Proxy !== 'undefined') {
-              return new Proxy(L, {
-                get: function(target, prop) {
-                  if (prop in target) return target[prop];
-                  if (prop === 'default' || prop === '__esModule') return target;
-                  return function DummyIcon(props) {
-                    var p = props || {};
-                    return window.React.createElement('svg', {
-                      width: p.size || p.width || 18,
-                      height: p.size || p.height || 18,
-                      viewBox: '0 0 24 24',
-                      fill: 'none',
-                      stroke: 'currentColor',
-                      strokeWidth: '2',
-                      strokeLinecap: 'round',
-                      strokeLinejoin: 'round',
-                      className: p.className || ''
-                    }, window.React.createElement('circle', { cx: 12, cy: 12, r: 9 }));
-                  };
+      const modulePolyfill = `
+        <script>
+          window.exports = {};
+          window.module = { exports: window.exports };
+          window.componentRegistry = {};
+          
+          window.require = function(moduleName) {
+            if (moduleName === 'react') {
+              var R = window.React || {};
+              return Object.assign({ default: R }, R);
+            }
+            if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
+              var RD = window.ReactDOM || {};
+              return Object.assign({ default: RD }, RD);
+            }
+            if (moduleName === 'lucide-react') {
+              var L = window.lucide || {};
+              if (typeof Proxy !== 'undefined') {
+                return new Proxy(L, {
+                  get: function(target, prop) {
+                    if (prop in target) return target[prop];
+                    if (prop === 'default' || prop === '__esModule') return target;
+                    return function DummyIcon(props) {
+                      var p = props || {};
+                      return window.React ? window.React.createElement('svg', {
+                        width: p.size || p.width || 18,
+                        height: p.size || p.height || 18,
+                        viewBox: '0 0 24 24',
+                        fill: 'none',
+                        stroke: 'currentColor',
+                        strokeWidth: '2',
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'round',
+                        className: p.className || ''
+                      }, window.React.createElement('circle', { cx: 12, cy: 12, r: 9 })) : null;
+                    };
+                  }
+                });
+              }
+              return L;
+            }
+            
+            const cleanName = moduleName.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
+            if (window.componentRegistry[cleanName]) return window.componentRegistry[cleanName];
+            if (window.componentRegistry["./" + cleanName]) return window.componentRegistry["./" + cleanName];
+            if (window.componentRegistry["../" + cleanName]) return window.componentRegistry["../" + cleanName];
+            
+            return window.exports;
+          };
+        </script>
+      `;
+
+      const reactHeader = `
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+        <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+        ${modulePolyfill}
+      `;
+
+      const transpileFile = (file: ProjectFile) => {
+        try {
+          const result = Babel.transform(file.content, {
+            presets: ["react", "typescript"],
+            filename: file.path,
+          });
+          const jsCode = result && result.code ? result.code : "";
+
+          return `
+            <script>
+              (function() {
+                var exports = {};
+                var module = { exports: exports };
+                try {
+                  ${jsCode}
+                  var exported = module.exports.default || module.exports.App || exports.default || exports.App || (typeof App !== 'undefined' ? App : null);
+                  if (exported) {
+                    var pathKey = "${file.path.replace(/\.[^/.]+$/, "")}";
+                    var cleanKey = pathKey.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
+                    window.componentRegistry[pathKey] = { default: exported, App: exported };
+                    window.componentRegistry["./" + pathKey] = { default: exported, App: exported };
+                    window.componentRegistry["../" + pathKey] = { default: exported, App: exported };
+                    window.componentRegistry[cleanKey] = { default: exported, App: exported };
+                    if (!window.exports.default && !window.exports.App) {
+                      window.exports.default = exported;
+                      window.exports.App = exported;
+                    }
+                  }
+                } catch (err) {
+                  console.error("Evaluation error in ${file.path}:", err);
+                }
+              })();
+            </script>
+          `;
+        } catch (babelErr: any) {
+          console.error("Babel transpilation error in " + file.path, babelErr);
+          return `
+            <script>
+              window.addEventListener('DOMContentLoaded', function() {
+                var root = document.getElementById('root') || document.body;
+                if (root) {
+                  root.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Syntax / Compilation Error in ${file.path}</h3><p style="margin-bottom: 12px; white-space: pre-wrap;">${babelErr.message.replace(/'/g, "\\'")}</p></div>';
                 }
               });
-            }
-            return L;
-          }
-          
-          const cleanName = moduleName.replace(/^\\.\\//, '').replace(/^\\.\\.\\//, '');
-          if (window.componentRegistry[cleanName]) {
-            return window.componentRegistry[cleanName];
-          }
-          return window.exports;
-        };
-      </script>
-    `;
-
-    const reactHeader = `
-      <script src="https://cdn.tailwindcss.com"></script>
-      <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-      <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-      <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-      ${modulePolyfill}
-    `;
-
-    const wrapComponentScript = (file: ProjectFile) => `
-      <script type="text/babel">
-        (function() {
-          var exports = {};
-          var module = { exports: exports };
-          try {
-            ${file.content}
-            var exported = module.exports.default || module.exports.App || exports.default || exports.App || (typeof App !== 'undefined' ? App : null);
-            if (exported) {
-              var pathKey = "${file.path.replace(/\.[^/.]+$/, "")}";
-              window.componentRegistry[pathKey] = { default: exported, App: exported };
-              window.componentRegistry["./" + pathKey] = { default: exported, App: exported };
-              window.componentRegistry["../" + pathKey] = { default: exported, App: exported };
-              if (!window.exports.default && !window.exports.App) {
-                window.exports.default = exported;
-                window.exports.App = exported;
-              }
-            }
-          } catch (err) {
-            console.error("Error evaluating ${file.path}:", err);
-          }
-        })();
-      </script>
-    `;
-
-    const componentScriptsHtml = componentFiles.map(wrapComponentScript).join("\n");
-    const mainScriptHtml = mainJsFile ? wrapComponentScript(mainJsFile) : "";
-
-    const mountRenderScript = `
-      <script type="text/babel">
-        window.addEventListener('error', function(e) {
-          var rootElement = document.getElementById('root') || document.body;
-          if (rootElement) {
-            rootElement.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Preview Runtime Exception</h3><p style="margin-bottom: 12px; white-space: pre-wrap;">' + (e.message || e) + '</p><div style="font-size: 12px; color: #94a3b8;">Line: ' + (e.lineno || 'N/A') + ' | File: ' + (e.filename || 'App') + '</div></div>';
-          }
-        });
-
-        try {
-          let TargetComponent = window.exports.default || window.exports.App;
-          if (!TargetComponent && typeof App !== 'undefined') {
-            TargetComponent = App;
-          }
-          if (!TargetComponent) {
-            const keys = Object.keys(window.componentRegistry);
-            if (keys.length > 0) {
-              TargetComponent = window.componentRegistry[keys[0]].default;
-            }
-          }
-          if (TargetComponent) {
-            const rootElement = document.getElementById('root') || document.body;
-            ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
-          } else {
-            document.getElementById('root').innerHTML = '<div style="padding: 2rem; font-family: sans-serif; color: #94a3b8; text-align: center;"><h2 style="font-size: 1.25rem; font-weight: 600; color: #818cf8; margin-bottom: 0.5rem;">Web Application Preview</h2><p>Your workspace is ready. Ask the AI assistant on the left to create components!</p></div>';
-          }
-        } catch (err) {
-          console.error(err);
-          document.getElementById('root').innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Render Error</h3><p>' + err.message + '</p></div>';
+            </script>
+          `;
         }
-      </script>
-    `;
+      };
 
-    if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
-      let html = indexHtmlFile.content;
+      const componentScriptsHtml = componentFiles.map(transpileFile).join("\n");
+      const mainScriptHtml = mainJsFile ? transpileFile(mainJsFile) : "";
 
-      if (!html.includes("react.development.js")) {
-        html = html.replace("<head>", `<head>\n${reactHeader}`);
-      } else {
-        html = html.replace("<head>", `<head>\n${modulePolyfill}`);
+      const mountRenderScript = `
+        <script>
+          window.addEventListener('error', function(e) {
+            var rootElement = document.getElementById('root') || document.body;
+            if (rootElement && !rootElement.innerHTML.includes('Preview Runtime Exception')) {
+              rootElement.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Preview Runtime Exception</h3><p style="margin-bottom: 12px; white-space: pre-wrap;">' + (e.message || e) + '</p><div style="font-size: 12px; color: #94a3b8;">Line: ' + (e.lineno || 'N/A') + ' | File: ' + (e.filename || 'App') + '</div></div>';
+            }
+          });
+
+          window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+              try {
+                let TargetComponent = window.exports.default || window.exports.App;
+                if (!TargetComponent && typeof App !== 'undefined') {
+                  TargetComponent = App;
+                }
+                if (!TargetComponent) {
+                  const keys = Object.keys(window.componentRegistry);
+                  if (keys.length > 0) {
+                    TargetComponent = window.componentRegistry[keys[0]].default;
+                  }
+                }
+                if (TargetComponent) {
+                  const rootElement = document.getElementById('root') || document.body;
+                  ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
+                } else {
+                  document.getElementById('root').innerHTML = '<div style="padding: 3rem; font-family: sans-serif; color: #94a3b8; text-align: center; background-color: #0f172a; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;"><h2 style="font-size: 1.5rem; font-weight: 700; color: #818cf8; margin-bottom: 0.75rem;">Web Application Workspace Ready</h2><p style="max-width: 400px; line-height: 1.6;">Ask the AI Agent Assistant on the left to build components & pages!</p></div>';
+                }
+              } catch (err) {
+                console.error(err);
+                document.getElementById('root').innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Render Error</h3><p>' + err.message + '</p></div>';
+              }
+            }, 50);
+          });
+        </script>
+      `;
+
+      if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
+        let html = indexHtmlFile.content;
+
+        if (!html.includes("react.development.js")) {
+          html = html.replace("<head>", `<head>\n${reactHeader}`);
+        } else {
+          html = html.replace("<head>", `<head>\n${modulePolyfill}`);
+        }
+
+        if (combinedCss.trim().length > 0) {
+          html = html.replace(
+            "</head>",
+            `  <style>\n${combinedCss}\n</style>\n</head>`
+          );
+        }
+
+        const allScripts = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
+        html = html.replace("</body>", `${allScripts}\n</body>`);
+
+        return html;
       }
 
-      if (combinedCss.trim().length > 0) {
-        html = html.replace(
-          "</head>",
-          `  <style>\n${combinedCss}\n</style>\n</head>`
-        );
-      }
-
-      const allScripts = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
-      html = html.replace("</body>", `${allScripts}\n</body>`);
-
-      return html;
-    }
-
-    return `<!DOCTYPE html>
+      return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -198,6 +228,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   ${reactHeader}
   <style>
     ${combinedCss}
+    body { background-color: #0f172a; color: #f87171; margin: 0; padding: 0; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
@@ -207,6 +238,9 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   ${mountRenderScript}
 </body>
 </html>`;
+    } catch (globalErr: any) {
+      return `<!DOCTYPE html><html><body style="background:#0f172a; color:#f87171; padding:20px; font-family:sans-serif;"><h3>Preview Compilation Error</h3><p>${globalErr.message}</p></body></html>`;
+    }
   };
 
   const handleRefresh = () => {

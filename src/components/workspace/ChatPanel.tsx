@@ -246,10 +246,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
 
       // Append returned user & assistant messages directly into UI state so they NEVER disappear
       if (data.message) {
+        let assistantMsgObj: Message;
+        if (typeof data.message === "object" && data.message !== null && data.message.content) {
+          assistantMsgObj = data.message;
+        } else {
+          assistantMsgObj = {
+            id: `asst-${Date.now()}`,
+            role: "assistant",
+            content: typeof data.message === "string" ? data.message : JSON.stringify(data.message),
+            created_at: new Date().toISOString(),
+          };
+        }
+
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
           const finalUserMsg = data.userMessage || tempUserMsg;
-          return [...filtered, finalUserMsg, data.message];
+          return [...filtered, finalUserMsg, assistantMsgObj];
         });
       }
     } catch (err: any) {
