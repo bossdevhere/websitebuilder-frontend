@@ -123,6 +123,17 @@ export const Workspace: React.FC = () => {
     setActiveFilePath(path);
   };
 
+  const handleAgentFileDeleted = (path: string) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const remaining = (prev.files || []).filter((f) => f.path !== path);
+      return { ...prev, files: remaining };
+    });
+    if (activeFilePath === path) {
+      setActiveFilePath(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[80vh] text-slate-400 space-x-2">
@@ -231,6 +242,7 @@ export const Workspace: React.FC = () => {
           projectId={project.id}
           token={session?.access_token || ""}
           onFileUpdated={handleAgentFileUpdated}
+          onFileDeleted={handleAgentFileDeleted}
         />
 
         {/* Middle: File Explorer Sidebar */}

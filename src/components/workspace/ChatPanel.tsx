@@ -19,9 +19,10 @@ interface ChatPanelProps {
   projectId: string;
   token: string;
   onFileUpdated?: (path: string, content: string) => void;
+  onFileDeleted?: (path: string) => void;
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUpdated }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUpdated, onFileDeleted }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -138,10 +139,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       }
     });
 
+    eventSource.addEventListener("file_deleted", (event: any) => {
+      const data = JSON.parse(event.data);
+      if (onFileDeleted && data.path) {
+        onFileDeleted(data.path);
+      }
+    });
+
     return () => {
       eventSource.close();
     };
-  }, [projectId, token, activeConversationId, onFileUpdated]);
+  }, [projectId, token, activeConversationId, onFileUpdated, onFileDeleted]);
 
   const handleCreateNewChat = async () => {
     if (!projectId || !token) return;
@@ -217,6 +225,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ projectId, token, onFileUp
       clearTimeout(timeoutId);
       setIsProcessing(false);
       setAgentStatus(null);
+
+      // Trigger file deletions in React workspace state
+      const deletedFiles = data.deletedFiles || [];
+      if (Array.isArray(deletedFiles) && onFileDeleted) {
+        deletedFiles.forEach((delPath: string) => {
+          if (delPath) onFileDeleted(delPath);
+        });
+      }
 
       // Trigger file updates in React workspace state for returned changes
       const changes = data.changes || data.fileChanges || [];

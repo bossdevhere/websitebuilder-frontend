@@ -54,9 +54,40 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
         window.componentRegistry = {};
         
         window.require = function(moduleName) {
-          if (moduleName === 'react') return window.React;
-          if (moduleName === 'react-dom' || moduleName === 'react-dom/client') return window.ReactDOM;
-          if (moduleName === 'lucide-react') return window.lucide || {};
+          if (moduleName === 'react') {
+            var R = window.React || {};
+            return Object.assign({ default: R }, R);
+          }
+          if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
+            var RD = window.ReactDOM || {};
+            return Object.assign({ default: RD }, RD);
+          }
+          if (moduleName === 'lucide-react') {
+            var L = window.lucide || {};
+            if (typeof Proxy !== 'undefined') {
+              return new Proxy(L, {
+                get: function(target, prop) {
+                  if (prop in target) return target[prop];
+                  if (prop === 'default' || prop === '__esModule') return target;
+                  return function DummyIcon(props) {
+                    var p = props || {};
+                    return window.React.createElement('svg', {
+                      width: p.size || p.width || 18,
+                      height: p.size || p.height || 18,
+                      viewBox: '0 0 24 24',
+                      fill: 'none',
+                      stroke: 'currentColor',
+                      strokeWidth: '2',
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      className: p.className || ''
+                    }, window.React.createElement('circle', { cx: 12, cy: 12, r: 9 }));
+                  };
+                }
+              });
+            }
+            return L;
+          }
           
           const cleanName = moduleName.replace(/^\\.\\//, '').replace(/^\\.\\.\\//, '');
           if (window.componentRegistry[cleanName]) {
@@ -105,6 +136,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
 
     const mountRenderScript = `
       <script type="text/babel">
+        window.addEventListener('error', function(e) {
+          var rootElement = document.getElementById('root') || document.body;
+          if (rootElement) {
+            rootElement.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Preview Runtime Exception</h3><p style="margin-bottom: 12px; white-space: pre-wrap;">' + (e.message || e) + '</p><div style="font-size: 12px; color: #94a3b8;">Line: ' + (e.lineno || 'N/A') + ' | File: ' + (e.filename || 'App') + '</div></div>';
+          }
+        });
+
         try {
           let TargetComponent = window.exports.default || window.exports.App;
           if (!TargetComponent && typeof App !== 'undefined') {
@@ -124,7 +162,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
           }
         } catch (err) {
           console.error(err);
-          document.getElementById('root').innerHTML = '<div style="color: #f87171; padding: 20px; font-family: monospace;">Runtime Error: ' + err.message + '</div>';
+          document.getElementById('root').innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Render Error</h3><p>' + err.message + '</p></div>';
         }
       </script>
     `;
