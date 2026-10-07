@@ -115,15 +115,17 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
             filename: file.path,
           });
           const jsCode = result && result.code ? result.code : "";
+          const isMainApp = file.path.endsWith("App.tsx") || file.path.endsWith("App.jsx") || file.path.endsWith("App.js") || file.path.endsWith("main.tsx") || file.path === "App" || file.path === "./App";
 
           return `
             <script>
               (function() {
-                var exports = {};
-                var module = { exports: exports };
+                var fileExports = {};
+                var module = { exports: fileExports };
                 try {
+                  var exports = fileExports;
                   ${jsCode}
-                  var exported = module.exports.default || module.exports.App || exports.default || exports.App || (typeof App !== 'undefined' ? App : null);
+                  var exported = fileExports.default || fileExports.App || module.exports.default || module.exports.App || (typeof App !== 'undefined' ? App : null);
                   if (exported) {
                     var pathKey = "${file.path.replace(/\.[^/.]+$/, "")}";
                     var cleanKey = pathKey.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
@@ -131,9 +133,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
                     window.componentRegistry["./" + pathKey] = { default: exported, App: exported };
                     window.componentRegistry["../" + pathKey] = { default: exported, App: exported };
                     window.componentRegistry[cleanKey] = { default: exported, App: exported };
-                    if (!window.exports.default && !window.exports.App) {
+                    
+                    if (${isMainApp} || pathKey === 'App' || cleanKey === 'App') {
+                      window.MainAppComponent = exported;
                       window.exports.default = exported;
                       window.exports.App = exported;
+                    } else if (!window.MainAppComponent && !window.exports.default) {
+                      window.exports.default = exported;
                     }
                   }
                 } catch (err) {
@@ -172,9 +178,24 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
           window.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
               try {
-                let TargetComponent = window.exports.default || window.exports.App;
-                if (!TargetComponent && typeof App !== 'undefined') {
-                  TargetComponent = App;
+                let TargetComponent = window.MainAppComponent;
+                if (!TargetComponent && window.componentRegistry["App"]) {
+                  TargetComponent = window.componentRegistry["App"].default;
+                }
+                if (!TargetComponent && window.componentRegistry["./App"]) {
+                  TargetComponent = window.componentRegistry["./App"].default;
+                }
+                if (!TargetComponent) {
+                  TargetComponent = window.exports.default || window.exports.App;
+                }
+                if (!TargetComponent) {
+                  const keys = Object.keys(window.componentRegistry);
+                  for (var i = 0; i < keys.length; i++) {
+                    if (keys[i].toLowerCase().includes("app")) {
+                      TargetComponent = window.componentRegistry[keys[i]].default;
+                      break;
+                    }
+                  }
                 }
                 if (!TargetComponent) {
                   const keys = Object.keys(window.componentRegistry);
@@ -182,6 +203,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
                     TargetComponent = window.componentRegistry[keys[0]].default;
                   }
                 }
+
                 if (TargetComponent) {
                   const rootElement = document.getElementById('root') || document.body;
                   ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
