@@ -6,13 +6,16 @@ interface CodeEditorProps {
   filePath: string | null;
   content: string;
   onSave: (content: string) => Promise<void>;
+  theme?: "dark" | "light";
 }
 
-export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSave }) => {
+export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSave, theme = "dark" }) => {
   const [editorValue, setEditorValue] = useState(content);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const editorValueRef = useRef(editorValue);
+
+  const isLight = theme === "light";
 
   useEffect(() => {
     setEditorValue(content);
@@ -27,7 +30,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
 
   if (!filePath) {
     return (
-      <div className="flex-1 bg-slate-900 flex items-center justify-center text-slate-500 flex-col space-y-2">
+      <div
+        className={`flex-1 flex items-center justify-center flex-col space-y-2 ${
+          isLight ? "bg-slate-50 text-slate-400" : "bg-slate-900 text-slate-500"
+        }`}
+      >
         <FileCode className="w-12 h-12 stroke-[1.5]" />
         <p className="text-sm">Select a file from the explorer to edit</p>
       </div>
@@ -58,10 +65,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-900">
+    <div className={`flex-1 flex flex-col h-full ${isLight ? "bg-white" : "bg-slate-900"}`}>
       {/* Editor Header Bar */}
-      <div className="h-10 border-b border-slate-800 bg-slate-950 px-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2 text-sm text-slate-300 font-mono">
+      <div
+        className={`h-10 border-b px-4 flex items-center justify-between transition-colors ${
+          isLight ? "border-slate-200 bg-slate-100 text-slate-800" : "border-slate-800 bg-slate-950 text-slate-300"
+        }`}
+      >
+        <div className="flex items-center space-x-2 text-sm font-mono">
           <span>{filePath}</span>
           {editorValue !== content && (
             <span className="w-2 h-2 rounded-full bg-amber-400" title="Unsaved changes" />
@@ -93,7 +104,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
         <Editor
           height="100%"
           language={getLanguage(filePath)}
-          theme="vs-dark"
+          theme={isLight ? "vs" : "vs-dark"}
           value={editorValue}
           onChange={handleEditorChange}
           onMount={(editor, monaco) => {

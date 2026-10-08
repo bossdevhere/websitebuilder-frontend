@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone } from "lucide-react";
+import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Sparkles } from "lucide-react";
 import * as Babel from "@babel/standalone";
 
 interface ProjectFile {
@@ -11,14 +11,18 @@ interface PreviewPanelProps {
   files: ProjectFile[];
   activeFilePath?: string | null;
   previewUrl?: string | null;
+  isProcessing?: boolean;
+  theme?: "dark" | "light";
 }
 
 type ViewportMode = "desktop" | "tablet" | "mobile";
 
-export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl }) => {
+export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, isProcessing, theme = "dark" }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>("desktop");
   const [iframeKey, setIframeKey] = useState<number>(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const isLight = theme === "light";
 
   // Auto-refresh iframe when project files change
   useEffect(() => {
@@ -54,11 +58,19 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
           window.exports = {};
           window.module = { exports: window.exports };
           window.componentRegistry = {};
+          window.__fileErrors = [];
+
+          var origWarn = console.warn;
+          console.warn = function() {
+            var msg = arguments[0] || '';
+            if (typeof msg === 'string' && msg.includes('cdn.tailwindcss.com should not be used in production')) return;
+            origWarn.apply(console, arguments);
+          };
           
           window.require = function(moduleName) {
-            if (moduleName === 'react') {
+            if (moduleName === 'react' || moduleName === 'react/jsx-runtime' || moduleName === 'react/jsx-dev-runtime') {
               var R = window.React || {};
-              return Object.assign({ default: R }, R);
+              return Object.assign({ default: R, jsx: R.createElement, jsxs: R.createElement, Fragment: R.Fragment || 'div' }, R);
             }
             if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
               var RD = window.ReactDOM || {};
@@ -91,11 +103,17 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
               return L;
             }
             
-            const cleanName = moduleName.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
-            if (window.componentRegistry[cleanName]) return window.componentRegistry[cleanName];
-            if (window.componentRegistry["./" + cleanName]) return window.componentRegistry["./" + cleanName];
-            if (window.componentRegistry["../" + cleanName]) return window.componentRegistry["../" + cleanName];
-            
+            if (window.componentRegistry[moduleName]) return window.componentRegistry[moduleName];
+
+            var clean = moduleName.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '').replace(/\\.[^/.]+$/, '');
+            if (window.componentRegistry[clean]) return window.componentRegistry[clean];
+            if (window.componentRegistry["./" + clean]) return window.componentRegistry["./" + clean];
+            if (window.componentRegistry["../" + clean]) return window.componentRegistry["../" + clean];
+
+            var base = clean.split('/').pop();
+            if (base && window.componentRegistry[base]) return window.componentRegistry[base];
+            if (base && window.componentRegistry[base.toLowerCase()]) return window.componentRegistry[base.toLowerCase()];
+
             return window.exports;
           };
         </script>
@@ -112,10 +130,18 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
         try {
           const result = Babel.transform(file.content, {
             presets: ["react", "typescript"],
+            plugins: ["transform-modules-commonjs"],
             filename: file.path,
           });
           const jsCode = result && result.code ? result.code : "";
-          const isMainApp = file.path.endsWith("App.tsx") || file.path.endsWith("App.jsx") || file.path.endsWith("App.js") || file.path.endsWith("main.tsx") || file.path === "App" || file.path === "./App";
+          const isMainApp =
+            file.path.endsWith("App.tsx") ||
+            file.path.endsWith("App.jsx") ||
+            file.path.endsWith("App.js") ||
+            file.path.endsWith("main.tsx") ||
+            file.path.endsWith("index.tsx") ||
+            file.path === "App" ||
+            file.path === "./App";
 
           return `
             <script>
@@ -125,25 +151,63 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
                 try {
                   var exports = fileExports;
                   ${jsCode}
-                  var exported = fileExports.default || fileExports.App || module.exports.default || module.exports.App || (typeof App !== 'undefined' ? App : null);
-                  if (exported) {
-                    var pathKey = "${file.path.replace(/\.[^/.]+$/, "")}";
-                    var cleanKey = pathKey.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
-                    window.componentRegistry[pathKey] = { default: exported, App: exported };
-                    window.componentRegistry["./" + pathKey] = { default: exported, App: exported };
-                    window.componentRegistry["../" + pathKey] = { default: exported, App: exported };
-                    window.componentRegistry[cleanKey] = { default: exported, App: exported };
-                    
-                    if (${isMainApp} || pathKey === 'App' || cleanKey === 'App') {
-                      window.MainAppComponent = exported;
-                      window.exports.default = exported;
-                      window.exports.App = exported;
-                    } else if (!window.MainAppComponent && !window.exports.default) {
-                      window.exports.default = exported;
+
+                  var combined = Object.assign({}, fileExports, module.exports);
+                  var primary = combined.default || combined.App;
+
+                  if (!primary) {
+                    var keys = Object.keys(combined);
+                    for (var i = 0; i < keys.length; i++) {
+                      var val = combined[keys[i]];
+                      if (typeof val === 'function' || (typeof val === 'object' && val !== null)) {
+                        primary = val;
+                        break;
+                      }
                     }
                   }
+
+                  if (primary && !combined.default) {
+                    combined.default = primary;
+                  }
+
+                  var rawPath = "${file.path}";
+                  var noExt = rawPath.replace(/\\.[^/.]+$/, "");
+                  var clean = noExt.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '');
+                  var base = clean.split('/').pop();
+
+                  var keysToRegister = [
+                    rawPath,
+                    noExt,
+                    "./" + noExt,
+                    "../" + noExt,
+                    clean,
+                    "./" + clean,
+                    "../" + clean,
+                    base,
+                    "./" + base,
+                    "../" + base,
+                    clean.toLowerCase(),
+                    base.toLowerCase()
+                  ];
+
+                  keysToRegister.forEach(function(k) {
+                    if (k) {
+                      window.componentRegistry[k] = combined;
+                    }
+                  });
+
+                  var isApp = ${isMainApp} || clean.toLowerCase() === 'app' || base.toLowerCase() === 'app';
+                  if (isApp && primary) {
+                    window.MainAppComponent = primary;
+                    window.exports.default = primary;
+                    window.exports.App = primary;
+                  } else if (!window.MainAppComponent && primary && (clean.toLowerCase().includes('app') || base.toLowerCase().includes('app'))) {
+                    window.MainAppComponent = primary;
+                  }
                 } catch (err) {
-                  console.error("Evaluation error in ${file.path}:", err);
+                  console.error("Evaluation error in " + "${file.path}" + ":", err);
+                  window.__fileErrors = window.__fileErrors || [];
+                  window.__fileErrors.push({ path: "${file.path}", error: err.message });
                 }
               })();
             </script>
@@ -178,37 +242,41 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
           window.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
               try {
+                if (window.__fileErrors && window.__fileErrors.length > 0) {
+                  var errMsgs = window.__fileErrors.map(function(e) { return '• ' + e.path + ': ' + e.error; }).join('<br/>');
+                  document.getElementById('root').innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ File Compilation / Execution Error</h3><div style="margin-bottom: 12px; white-space: pre-wrap;">' + errMsgs + '</div></div>';
+                  return;
+                }
+
                 let TargetComponent = window.MainAppComponent;
-                if (!TargetComponent && window.componentRegistry["App"]) {
-                  TargetComponent = window.componentRegistry["App"].default;
-                }
-                if (!TargetComponent && window.componentRegistry["./App"]) {
-                  TargetComponent = window.componentRegistry["./App"].default;
-                }
+                
                 if (!TargetComponent) {
-                  TargetComponent = window.exports.default || window.exports.App;
-                }
-                if (!TargetComponent) {
-                  const keys = Object.keys(window.componentRegistry);
-                  for (var i = 0; i < keys.length; i++) {
-                    if (keys[i].toLowerCase().includes("app")) {
-                      TargetComponent = window.componentRegistry[keys[i]].default;
-                      break;
+                  const regKeys = Object.keys(window.componentRegistry);
+                  for (var i = 0; i < regKeys.length; i++) {
+                    var k = regKeys[i];
+                    if (k.toLowerCase().includes("app")) {
+                      var mod = window.componentRegistry[k];
+                      TargetComponent = mod.default || mod.App || Object.values(mod)[0];
+                      if (TargetComponent) break;
                     }
                   }
                 }
+
+                if (!TargetComponent && window.exports) {
+                  TargetComponent = window.exports.default || window.exports.App;
+                }
+
                 if (!TargetComponent) {
-                  const keys = Object.keys(window.componentRegistry);
-                  if (keys.length > 0) {
-                    TargetComponent = window.componentRegistry[keys[0]].default;
+                  const regKeys = Object.keys(window.componentRegistry);
+                  if (regKeys.length > 0) {
+                    var firstMod = window.componentRegistry[regKeys[0]];
+                    TargetComponent = firstMod.default || firstMod.App || Object.values(firstMod)[0];
                   }
                 }
 
-                if (TargetComponent) {
+                if (TargetComponent && (typeof TargetComponent === 'function' || typeof TargetComponent === 'object')) {
                   const rootElement = document.getElementById('root') || document.body;
                   ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
-                } else {
-                  document.getElementById('root').innerHTML = '<div style="padding: 3rem; font-family: sans-serif; color: #94a3b8; text-align: center; background-color: #0f172a; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;"><h2 style="font-size: 1.5rem; font-weight: 700; color: #818cf8; margin-bottom: 0.75rem;">Web Application Workspace Ready</h2><p style="max-width: 400px; line-height: 1.6;">Ask the AI Agent Assistant on the left to build components & pages!</p></div>';
                 }
               } catch (err) {
                 console.error(err);
@@ -270,10 +338,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   };
 
   const handleOpenNewTab = () => {
-    if (previewUrl) {
-      window.open(previewUrl, "_blank");
-      return;
-    }
     const srcDoc = generateSrcDoc();
     const win = window.open();
     if (win) {
@@ -286,9 +350,13 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   const getViewportDimensions = () => {
     switch (viewportMode) {
       case "mobile":
-        return "w-[375px] h-[667px] shadow-2xl rounded-2xl border-4 border-slate-800";
+        return `w-[375px] h-[667px] shadow-2xl rounded-2xl border-4 ${
+          isLight ? "border-slate-300" : "border-slate-800"
+        }`;
       case "tablet":
-        return "w-[768px] h-[90%] shadow-2xl rounded-xl border-4 border-slate-800";
+        return `w-[768px] h-[90%] shadow-2xl rounded-xl border-4 ${
+          isLight ? "border-slate-300" : "border-slate-800"
+        }`;
       case "desktop":
       default:
         return "w-full h-full";
@@ -296,11 +364,19 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 h-full overflow-hidden border-l border-slate-800">
+    <div
+      className={`flex-1 flex flex-col h-full overflow-hidden border-l transition-colors ${
+        isLight ? "bg-slate-100 border-slate-200 text-slate-800" : "bg-slate-950 border-slate-800 text-slate-200"
+      }`}
+    >
       {/* Preview Header Toolbar */}
-      <div className="h-10 border-b border-slate-800 bg-slate-900/80 px-3 flex items-center justify-between select-none">
+      <div
+        className={`h-10 border-b px-3 flex items-center justify-between select-none ${
+          isLight ? "border-slate-200 bg-white" : "border-slate-800 bg-slate-900/80"
+        }`}
+      >
         <div className="flex items-center space-x-1">
-          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider px-2">
+          <span className={`text-xs font-semibold uppercase tracking-wider px-2 ${isLight ? "text-slate-700" : "text-slate-300"}`}>
             Live Preview
           </span>
           <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 px-2 py-0.5 rounded font-mono">
@@ -309,12 +385,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
         </div>
 
         {/* Viewport Modes */}
-        <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <div className={`flex items-center space-x-1 p-1 rounded-lg border ${isLight ? "bg-slate-100 border-slate-300" : "bg-slate-950 border-slate-800"}`}>
           <button
             onClick={() => setViewportMode("desktop")}
             className={`p-1.5 rounded text-xs flex items-center space-x-1 transition-colors ${
               viewportMode === "desktop"
                 ? "bg-indigo-600 text-white font-medium"
+                : isLight
+                ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
             title="Desktop Mode (100%)"
@@ -326,6 +404,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
             className={`p-1.5 rounded text-xs flex items-center space-x-1 transition-colors ${
               viewportMode === "tablet"
                 ? "bg-indigo-600 text-white font-medium"
+                : isLight
+                ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
             title="Tablet Mode (768px)"
@@ -337,6 +417,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
             className={`p-1.5 rounded text-xs flex items-center space-x-1 transition-colors ${
               viewportMode === "mobile"
                 ? "bg-indigo-600 text-white font-medium"
+                : isLight
+                ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
             title="Mobile Mode (375px)"
@@ -349,14 +431,18 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
         <div className="flex items-center space-x-2">
           <button
             onClick={handleRefresh}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            className={`p-1.5 rounded transition-colors ${
+              isLight ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200" : "text-slate-400 hover:text-white hover:bg-slate-800"
+            }`}
             title="Refresh Sandbox Preview"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
             onClick={handleOpenNewTab}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            className={`p-1.5 rounded transition-colors ${
+              isLight ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200" : "text-slate-400 hover:text-white hover:bg-slate-800"
+            }`}
             title="Open in New Tab"
           >
             <ExternalLink className="w-4 h-4" />
@@ -365,13 +451,25 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl })
       </div>
 
       {/* Sandbox IFrame Container */}
-      <div className="flex-1 bg-slate-950 flex items-center justify-center p-2 overflow-auto">
+      <div className={`flex-1 flex items-center justify-center p-2 overflow-auto relative ${isLight ? "bg-slate-200" : "bg-slate-950"}`}>
+        {/* Animated Loading Overlay: ONLY shown when AI Agent is actively generating code */}
+        {isProcessing && (
+          <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200 backdrop-blur-md ${isLight ? "bg-white/90 text-slate-900" : "bg-slate-950/90 text-white"}`}>
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+              <Sparkles className="w-6 h-6 text-indigo-500 absolute inset-0 m-auto animate-pulse" />
+            </div>
+            <h3 className={`text-lg font-bold mb-2 ${isLight ? "text-slate-900" : "text-white"}`}>⚡ AI Agent is Building Application</h3>
+            <p className={`text-sm max-w-sm ${isLight ? "text-slate-500" : "text-slate-400"}`}>Generating components, styling layouts, and compiling live preview...</p>
+          </div>
+        )}
+
         <iframe
           key={iframeKey}
           ref={iframeRef}
           srcDoc={generateSrcDoc()}
           title="App Live Preview"
-          sandbox="allow-scripts allow-modals allow-same-origin"
+          sandbox="allow-scripts allow-modals"
           className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}
         />
       </div>
