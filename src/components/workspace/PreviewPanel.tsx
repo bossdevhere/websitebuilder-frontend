@@ -63,14 +63,67 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           var origWarn = console.warn;
           console.warn = function() {
             var msg = arguments[0] || '';
-            if (typeof msg === 'string' && msg.includes('cdn.tailwindcss.com should not be used in production')) return;
+            if (typeof msg === 'string' && (
+              msg.includes('cdn.tailwindcss.com should not be used in production') ||
+              msg.includes('Each child in a list should have a unique "key" prop')
+            )) return;
             origWarn.apply(console, arguments);
+          };
+
+          function unwrapComponent(type) {
+            if (!type) return type;
+            if (typeof type === 'function' || typeof type === 'string') return type;
+            if (typeof type === 'object') {
+              if (typeof type.default === 'function') return unwrapComponent(type.default);
+              if (typeof type.App === 'function') return unwrapComponent(type.App);
+              var vals = Object.values(type);
+              for (var i = 0; i < vals.length; i++) {
+                if (typeof vals[i] === 'function') return unwrapComponent(vals[i]);
+              }
+            }
+            return type;
+          }
+
+          if (window.React) {
+            var origCE = window.React.createElement;
+            window.React.createElement = function(type) {
+              arguments[0] = unwrapComponent(type);
+              return origCE.apply(this, arguments);
+            };
+          }
+
+          window.__makeCallableModule = function(target, primary) {
+            target.__esModule = true;
+            if (typeof primary === 'function') {
+              var fn = function(props) {
+                return primary(props);
+              };
+              Object.assign(fn, target);
+              fn.default = primary;
+              fn.__esModule = true;
+              return fn;
+            }
+            return target;
           };
           
           window.require = function(moduleName) {
             if (moduleName === 'react' || moduleName === 'react/jsx-runtime' || moduleName === 'react/jsx-dev-runtime') {
               var R = window.React || {};
-              return Object.assign({ default: R, jsx: R.createElement, jsxs: R.createElement, Fragment: R.Fragment || 'div' }, R);
+              var safeJsx = function(type, props, key) {
+                var resolved = unwrapComponent(type);
+                var safeProps = props || {};
+                if (key !== undefined && safeProps.key === undefined) {
+                  safeProps = Object.assign({}, safeProps, { key: key });
+                }
+                return R.createElement(resolved, safeProps);
+              };
+              return Object.assign({
+                default: R,
+                jsx: safeJsx,
+                jsxs: safeJsx,
+                jsxDEV: safeJsx,
+                Fragment: R.Fragment || 'div'
+              }, R);
             }
             if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
               var RD = window.ReactDOM || {};
@@ -78,25 +131,31 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             }
             if (moduleName === 'lucide-react') {
               var L = window.lucide || {};
+              var createDummyIcon = function(name) {
+                return function DummyIcon(props) {
+                  var p = props || {};
+                  var sz = p.size || p.width || p.height || 18;
+                  return window.React ? window.React.createElement('svg', {
+                    width: sz,
+                    height: sz,
+                    viewBox: '0 0 24 24',
+                    fill: 'none',
+                    stroke: 'currentColor',
+                    strokeWidth: '2',
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    className: p.className || ''
+                  }, window.React.createElement('circle', { cx: 12, cy: 12, r: 8 })) : null;
+                };
+              };
+
               if (typeof Proxy !== 'undefined') {
                 return new Proxy(L, {
                   get: function(target, prop) {
+                    if (prop === '__esModule') return true;
+                    if (prop === 'default') return target;
                     if (prop in target) return target[prop];
-                    if (prop === 'default' || prop === '__esModule') return target;
-                    return function DummyIcon(props) {
-                      var p = props || {};
-                      return window.React ? window.React.createElement('svg', {
-                        width: p.size || p.width || 18,
-                        height: p.size || p.height || 18,
-                        viewBox: '0 0 24 24',
-                        fill: 'none',
-                        stroke: 'currentColor',
-                        strokeWidth: '2',
-                        strokeLinecap: 'round',
-                        strokeLinejoin: 'round',
-                        className: p.className || ''
-                      }, window.React.createElement('circle', { cx: 12, cy: 12, r: 9 })) : null;
-                    };
+                    return createDummyIcon(prop);
                   }
                 });
               }
@@ -153,13 +212,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                   ${jsCode}
 
                   var combined = Object.assign({}, fileExports, module.exports);
+                  combined.__esModule = true;
                   var primary = combined.default || combined.App;
 
                   if (!primary) {
                     var keys = Object.keys(combined);
                     for (var i = 0; i < keys.length; i++) {
                       var val = combined[keys[i]];
-                      if (typeof val === 'function' || (typeof val === 'object' && val !== null)) {
+                      if (typeof val === 'function') {
                         primary = val;
                         break;
                       }
@@ -169,6 +229,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                   if (primary && !combined.default) {
                     combined.default = primary;
                   }
+
+                  var exportedModule = window.__makeCallableModule ? window.__makeCallableModule(combined, primary) : combined;
 
                   var rawPath = "${file.path}";
                   var noExt = rawPath.replace(/\\.[^/.]+$/, "");
@@ -192,7 +254,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
 
                   keysToRegister.forEach(function(k) {
                     if (k) {
-                      window.componentRegistry[k] = combined;
+                      window.componentRegistry[k] = exportedModule;
                     }
                   });
 
