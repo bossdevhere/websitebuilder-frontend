@@ -292,7 +292,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     } catch (err: any) {
       clearTimeout(timeoutId);
       setUiError(err.message || "Unable to connect to AI backend.");
-      setIsProcessing(false);
+      updateProcessingState(false);
       setAgentStatus(null);
     }
   };

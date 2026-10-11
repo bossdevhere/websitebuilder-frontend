@@ -131,11 +131,51 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             }
             if (moduleName === 'lucide-react') {
               var L = window.lucide || {};
+              var iconSvgDefs = {
+                Sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+                ArrowRight: '<path d="M5 12h14m-7-7 7 7-7 7"/>',
+                CheckCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+                Check: '<polyline points="20 6 9 17 4 12"/>',
+                Menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+                X: '<path d="M18 6 6 18M6 6l12 12"/>',
+                Zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+                Mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+                Globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+                Cpu: '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2m-6-2v2M15 20v2m-6-2v2M2 15h2m-2-6h2M20 15h2m-2-6h2"/>',
+                Code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+                Code2: '<path d="m18 16 4-4-4-4M6 8l-4 4 4 4m8.5-12-5 16"/>',
+                Plus: '<path d="M5 12h14m-7-7v14"/>',
+                Trash2: '<path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 5v6m4-6v6"/>',
+                User: '<circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>',
+                Search: '<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>',
+                Star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+                Heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+                Shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+                ChevronRight: '<path d="m9 18 6-6-6-6"/>',
+                ChevronDown: '<path d="m6 9 6 6 6-6"/>',
+                Play: '<polygon points="6 3 20 12 6 21 6 3"/>'
+              };
               var createDummyIcon = function(name) {
                 return function DummyIcon(props) {
                   var p = props || {};
                   var sz = p.size || p.width || p.height || 18;
-                  return window.React ? window.React.createElement('svg', {
+                  if (!window.React) return null;
+                  var def = iconSvgDefs[name];
+                  if (def) {
+                    return window.React.createElement('svg', {
+                      width: sz,
+                      height: sz,
+                      viewBox: '0 0 24 24',
+                      fill: 'none',
+                      stroke: 'currentColor',
+                      strokeWidth: '2',
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      className: p.className || '',
+                      dangerouslySetInnerHTML: { __html: def }
+                    });
+                  }
+                  return window.React.createElement('svg', {
                     width: sz,
                     height: sz,
                     viewBox: '0 0 24 24',
@@ -145,7 +185,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                     strokeLinecap: 'round',
                     strokeLinejoin: 'round',
                     className: p.className || ''
-                  }, window.React.createElement('circle', { cx: 12, cy: 12, r: 8 })) : null;
+                  }, window.React.createElement('circle', { cx: 12, cy: 12, r: 8 }));
                 };
               };
 
@@ -380,7 +420,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
   ${reactHeader}
   <style>
     ${combinedCss}
-    body { background-color: #0f172a; color: #f87171; margin: 0; padding: 0; }
+    body { background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
