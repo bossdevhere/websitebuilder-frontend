@@ -122,20 +122,22 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   {getFileIcon(file.path)}
                   <span className="truncate">{file.path}</span>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Are you sure you want to delete ${file.path}?`)) {
-                      onDeleteFile(file.path);
-                    }
-                  }}
-                  className={`opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity ${
-                    isLight ? "text-slate-400" : "text-slate-500"
-                  }`}
-                  title="Delete File"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                {file.path !== "App.tsx" && file.path !== "index.html" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to delete ${file.path}?`)) {
+                        onDeleteFile(file.path);
+                      }
+                    }}
+                    className={`opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity ${
+                      isLight ? "text-slate-400" : "text-slate-500"
+                    }`}
+                    title="Delete File"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             );
           })

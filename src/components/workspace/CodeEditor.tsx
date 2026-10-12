@@ -50,11 +50,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
     return "plaintext";
   };
 
-  const handleSaveClick = async () => {
+  const handleSaveClick = async (currentVal?: string) => {
     setIsSaving(true);
     setSavedSuccess(false);
     try {
-      await onSave(editorValueRef.current);
+      const valToSave = currentVal !== undefined ? currentVal : editorValueRef.current;
+      await onSave(valToSave);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2000);
     } catch (err) {
@@ -80,7 +81,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
         </div>
 
         <button
-          onClick={handleSaveClick}
+          onClick={() => handleSaveClick()}
           disabled={isSaving}
           className="flex items-center space-x-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-1 rounded transition-colors"
           title="Save file (Cmd+S / Ctrl+S)"
@@ -131,7 +132,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ filePath, content, onSav
             });
 
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-              handleSaveClick();
+              handleSaveClick(editor.getValue());
             });
           }}
           options={{

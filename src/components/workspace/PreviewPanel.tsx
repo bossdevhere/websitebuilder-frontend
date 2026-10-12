@@ -392,21 +392,23 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
       if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
         let html = indexHtmlFile.content;
 
-        if (!html.includes("react.development.js")) {
-          html = html.replace("<head>", `<head>\n${reactHeader}`);
+        const headMatch = html.match(/<head[^>]*>/i);
+        const scriptsToInject = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
+        const styleTag = combinedCss.trim().length > 0 ? `  <style>\n${combinedCss}\n</style>\n` : "";
+
+        if (headMatch) {
+          const headerToInject = !html.includes("react.development.js") ? reactHeader : modulePolyfill;
+          html = html.replace(headMatch[0], `${headMatch[0]}\n${headerToInject}\n${styleTag}`);
         } else {
-          html = html.replace("<head>", `<head>\n${modulePolyfill}`);
+          html = `<head>\n${reactHeader}\n${styleTag}</head>\n${html}`;
         }
 
-        if (combinedCss.trim().length > 0) {
-          html = html.replace(
-            "</head>",
-            `  <style>\n${combinedCss}\n</style>\n</head>`
-          );
+        const bodyCloseMatch = html.match(/<\/body>/i);
+        if (bodyCloseMatch) {
+          html = html.replace(bodyCloseMatch[0], `${scriptsToInject}\n${bodyCloseMatch[0]}`);
+        } else {
+          html = `${html}\n${scriptsToInject}`;
         }
-
-        const allScripts = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
-        html = html.replace("</body>", `${allScripts}\n</body>`);
 
         return html;
       }
