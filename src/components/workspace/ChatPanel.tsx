@@ -103,34 +103,51 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
         setMessages(data.messages);
+        return;
       }
     } catch (err: any) {
       console.warn("Message fetch fallback:", err.message);
-      fetch(`/api/agent/projects/${projectId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.messages && d.messages.length > 0) setMessages(d.messages);
-        })
-        .catch(() => {});
+      try {
+        const legacyRes = await fetch(`/api/agent/projects/${projectId}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await legacyRes.json();
+        if (d.messages && d.messages.length > 0) {
+          setMessages(d.messages);
+          return;
+        }
+      } catch (e) {}
     }
+
+    // LocalStorage fallback if server has no messages
+    try {
+      const local = localStorage.getItem(`chat_messages_${projectId}_${convId}`);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch (e) {}
   };
 
   useEffect(() => {
     if (activeConversationId) {
       fetchMessages(activeConversationId);
     } else if (projectId && token) {
-      fetch(`/api/agent/projects/${projectId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.messages && d.messages.length > 0) setMessages(d.messages);
-        })
-        .catch(() => {});
+      fetchMessages(projectId);
     }
   }, [activeConversationId, projectId, token]);
+
+  // Persist messages in localStorage per conversation thread
+  useEffect(() => {
+    if (messages.length > 0 && projectId) {
+      try {
+        const key = `chat_messages_${projectId}_${activeConversationId || projectId}`;
+        localStorage.setItem(key, JSON.stringify(messages));
+      } catch (e) {}
+    }
+  }, [messages, projectId, activeConversationId]);
 
   // Connect Server-Sent Events (SSE) Stream
   useEffect(() => {
@@ -148,12 +165,61 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     eventSource.addEventListener("status", (event: any) => {
       const data = JSON.parse(event.data);
-      setAgentStatus(data.message || data.status);
+      if (data.status === "planning" || data.status === "generating" || data.status === "verifying") {
+        setAgentStatus(data.message || `AI Agent ${data.status}...`);
+      }
       if (data.logs) setAgentLogs(data.logs);
 
-      if (data.status === "done" || data.status === "error") {
+      if (data.status === "done") {
         updateProcessingState(false);
         setAgentStatus(null);
+
+        // Apply file updates if present in SSE payload
+        if (Array.isArray(data.fileChanges) && onFileUpdated) {
+          data.fileChanges.forEach((change: any) => {
+            if (change.path && change.content) onFileUpdated(change.path, change.content);
+          });
+        }
+        if (Array.isArray(data.deletedFiles) && onFileDeleted) {
+          data.deletedFiles.forEach((delPath: string) => {
+            if (delPath) onFileDeleted(delPath);
+          });
+        }
+
+        // Immediately append assistant response to messages feed if present
+        if (data.message && typeof data.message === "string") {
+          const replyText = data.message;
+          setMessages((prev) => {
+            const alreadyHasReply = prev.some(
+              (m) => m.role === "assistant" && (m.content === replyText || m.content.includes(replyText.slice(0, 40)))
+            );
+            if (alreadyHasReply) return prev;
+            return [
+              ...prev,
+              {
+                id: `asst-sse-${Date.now()}`,
+                role: "assistant",
+                content: replyText,
+                created_at: new Date().toISOString(),
+              },
+            ];
+          });
+        }
+      } else if (data.status === "error") {
+        updateProcessingState(false);
+        setAgentStatus(null);
+        if (data.message) {
+          setUiError(data.message);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: "assistant",
+              content: data.message,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        }
       }
     });
 
@@ -223,7 +289,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const timeoutId = setTimeout(() => {
       updateProcessingState(false);
       setAgentStatus(null);
-    }, 45000);
+      setUiError("Request timed out. The AI agent may still be building complex components. Please check preview or retry.");
+    }, 180000);
 
     try {
       let url = `/api/agent/projects/${projectId}/prompt`;
@@ -271,23 +338,37 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       // Append returned user & assistant messages directly into UI state so they NEVER disappear
       if (data.message) {
-        let assistantMsgObj: Message;
+        let assistantContent = "";
+        let assistantId = `asst-${Date.now()}`;
         if (typeof data.message === "object" && data.message !== null && data.message.content) {
-          assistantMsgObj = data.message;
-        } else {
-          assistantMsgObj = {
-            id: `asst-${Date.now()}`,
-            role: "assistant",
-            content: typeof data.message === "string" ? data.message : JSON.stringify(data.message),
-            created_at: new Date().toISOString(),
-          };
+          assistantContent = data.message.content;
+          assistantId = data.message.id || assistantId;
+        } else if (typeof data.message === "string") {
+          assistantContent = data.message;
         }
 
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-          const finalUserMsg = data.userMessage || tempUserMsg;
-          return [...filtered, finalUserMsg, assistantMsgObj];
-        });
+        if (assistantContent) {
+          const assistantMsgObj: Message = {
+            id: assistantId,
+            role: "assistant",
+            content: assistantContent,
+            created_at: new Date().toISOString(),
+          };
+
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+            const finalUserMsg = data.userMessage || tempUserMsg;
+            const alreadyPresent = filtered.some(
+              (m) =>
+                m.role === "assistant" &&
+                (m.content === assistantContent || m.content.includes(assistantContent.slice(0, 40)))
+            );
+            if (alreadyPresent) {
+              return [...filtered, finalUserMsg];
+            }
+            return [...filtered, finalUserMsg, assistantMsgObj];
+          });
+        }
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
