@@ -15,6 +15,17 @@ interface Message {
   created_at: string;
 }
 
+const sortMessagesChronologically = (list: Message[]): Message[] => {
+  return [...list].sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    if (a.role === "user" && b.role === "assistant") return -1;
+    if (a.role === "assistant" && b.role === "user") return 1;
+    return 0;
+  });
+};
+
 interface ChatPanelProps {
   projectId: string;
   token: string;
@@ -102,7 +113,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
-        setMessages(data.messages);
+        setMessages(sortMessagesChronologically(data.messages));
         return;
       }
     } catch (err: any) {
@@ -113,7 +124,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         });
         const d = await legacyRes.json();
         if (d.messages && d.messages.length > 0) {
-          setMessages(d.messages);
+          setMessages(sortMessagesChronologically(d.messages));
           return;
         }
       } catch (e) {}
@@ -125,7 +136,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       if (local) {
         const parsed = JSON.parse(local);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
+          setMessages(sortMessagesChronologically(parsed));
         }
       }
     } catch (e) {}
@@ -144,7 +155,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (messages.length > 0 && projectId) {
       try {
         const key = `chat_messages_${projectId}_${activeConversationId || projectId}`;
-        localStorage.setItem(key, JSON.stringify(messages));
+        localStorage.setItem(key, JSON.stringify(sortMessagesChronologically(messages)));
       } catch (e) {}
     }
   }, [messages, projectId, activeConversationId]);
@@ -194,7 +205,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               (m) => m.role === "assistant" && (m.content === replyText || m.content.includes(replyText.slice(0, 40)))
             );
             if (alreadyHasReply) return prev;
-            return [
+            return sortMessagesChronologically([
               ...prev,
               {
                 id: `asst-sse-${Date.now()}`,
@@ -202,7 +213,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 content: replyText,
                 created_at: new Date().toISOString(),
               },
-            ];
+            ]);
           });
         }
       } else if (data.status === "error") {
@@ -336,37 +347,56 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         });
       }
 
-      // Append returned user & assistant messages directly into UI state so they NEVER disappear
+      // Ensure returned user & assistant messages are in proper chronological order
       if (data.message) {
         let assistantContent = "";
         let assistantId = `asst-${Date.now()}`;
+        let assistantCreatedAt = new Date().toISOString();
         if (typeof data.message === "object" && data.message !== null && data.message.content) {
           assistantContent = data.message.content;
           assistantId = data.message.id || assistantId;
+          assistantCreatedAt = data.message.created_at || assistantCreatedAt;
         } else if (typeof data.message === "string") {
           assistantContent = data.message;
         }
 
         if (assistantContent) {
+          const finalUserMsg: Message = data.userMessage || tempUserMsg;
           const assistantMsgObj: Message = {
             id: assistantId,
             role: "assistant",
             content: assistantContent,
-            created_at: new Date().toISOString(),
+            created_at: assistantCreatedAt,
           };
 
           setMessages((prev) => {
-            const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-            const finalUserMsg = data.userMessage || tempUserMsg;
-            const alreadyPresent = filtered.some(
+            let replacedUser = false;
+            // 1. Replace tempUserMsg in-place to strictly preserve prompt order
+            const updated = prev.map((m) => {
+              if (m.id === tempUserMsg.id) {
+                replacedUser = true;
+                return finalUserMsg;
+              }
+              return m;
+            });
+
+            // If tempUserMsg wasn't found in array, ensure finalUserMsg is present
+            if (!replacedUser && !updated.some((m) => m.id === finalUserMsg.id)) {
+              updated.push(finalUserMsg);
+            }
+
+            // 2. Check if assistant response was already appended (e.g., via SSE)
+            const alreadyHasAssistant = updated.some(
               (m) =>
                 m.role === "assistant" &&
-                (m.content === assistantContent || m.content.includes(assistantContent.slice(0, 40)))
+                (m.id === assistantMsgObj.id || m.content === assistantContent)
             );
-            if (alreadyPresent) {
-              return [...filtered, finalUserMsg];
+
+            if (!alreadyHasAssistant) {
+              updated.push(assistantMsgObj);
             }
-            return [...filtered, finalUserMsg, assistantMsgObj];
+
+            return sortMessagesChronologically(updated);
           });
         }
       }
