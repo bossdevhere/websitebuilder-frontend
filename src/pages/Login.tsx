@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, ShieldCheck, Cpu, Zap, Star } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, ShieldCheck, Cpu, Zap, Code2, Layers } from "lucide-react";
 import gsap from "gsap";
 
 export const Login: React.FC = () => {
@@ -204,27 +204,49 @@ export const Login: React.FC = () => {
             </div>
           </div>
 
-          {/* Center Showcase Card */}
+          {/* Center Showcase Window Card */}
           <div className="my-auto z-10 space-y-4">
-            <div className="p-6 bg-slate-950/80 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl">
-              <div className="flex items-center space-x-1 text-amber-400 mb-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
-                ))}
-              </div>
-              <p className="text-sm text-slate-200 font-medium italic mb-4 leading-relaxed">
-                "We built and tested 4 production-grade React apps within an hour using AI Website Builder. The live preview and conversation memory are top notch."
-              </p>
-              <div className="flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80"
-                  alt="Elena Vance"
-                  className="w-9 h-9 rounded-full object-cover border-2 border-indigo-500/50"
-                />
-                <div>
-                  <h4 className="text-xs font-bold text-white">Elena Vance</h4>
-                  <p className="text-[11px] text-slate-400">Lead Frontend Engineer</p>
+            <div className="bg-slate-950/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden group">
+              {/* macOS Window Title Bar */}
+              <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                  <span className="text-[11px] text-slate-400 font-mono ml-2">Workspace • App.tsx & Live Preview</span>
                 </div>
+                <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                  ● Live Sync
+                </span>
+              </div>
+
+              {/* High-Res Visual App Preview Banner */}
+              <div className="relative h-48 overflow-hidden bg-slate-950">
+                <img
+                  src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1000&q=80"
+                  alt="AI Web Studio Interface"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter brightness-95"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-700/80 text-[11px] text-white">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>AI: "Generate modern analytics dashboard"</span>
+                  </div>
+                  <span className="text-[10px] text-indigo-300 font-mono bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/80">
+                    Compiled in 320ms
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature Tags Footer */}
+              <div className="p-4 bg-slate-900/50 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <div className="flex items-center space-x-2 text-slate-300">
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">React 18</span>
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">Tailwind CSS</span>
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">Monaco Editor</span>
+                </div>
+                <span className="text-emerald-400 font-medium">Instant Hot Reload</span>
               </div>
             </div>
           </div>

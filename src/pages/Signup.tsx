@@ -213,26 +213,49 @@ export const Signup: React.FC = () => {
             </div>
           </div>
 
-          {/* Center Showcase Card */}
+          {/* Center Showcase Window Card */}
           <div className="my-auto z-10 space-y-4">
-            <div className="p-6 bg-slate-950/80 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl">
-              <div className="flex items-center space-x-2 text-indigo-400 mb-2">
-                <Globe className="w-4 h-4" />
-                <span className="text-xs font-semibold uppercase tracking-wider">Next-Gen Development</span>
-              </div>
-              <p className="text-sm text-slate-200 font-medium mb-4 leading-relaxed">
-                Describe anything from landing pages to full interactive web apps. The agent architects modular code, executes safe refactors, and compiles client-side in real-time.
-              </p>
-              <div className="flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80"
-                  alt="Marcus Brody"
-                  className="w-9 h-9 rounded-full object-cover border-2 border-purple-500/50"
-                />
-                <div>
-                  <h4 className="text-xs font-bold text-white">Marcus Brody</h4>
-                  <p className="text-[11px] text-slate-400">Founder & Full-Stack Architect</p>
+            <div className="bg-slate-950/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden group">
+              {/* macOS Window Title Bar */}
+              <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-500/80" />
+                  <span className="text-[11px] text-slate-400 font-mono ml-2">Autonomous Builder • Full-Stack View</span>
                 </div>
+                <span className="text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                  ● Agent Active
+                </span>
+              </div>
+
+              {/* High-Res Visual App Preview Banner */}
+              <div className="relative h-48 overflow-hidden bg-slate-950">
+                <img
+                  src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1000&q=80"
+                  alt="Generative Web Architecture"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter brightness-95"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-700/80 text-[11px] text-white">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>AI: "Architect complete portfolio with dark theme"</span>
+                  </div>
+                  <span className="text-[10px] text-purple-300 font-mono bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/80">
+                    5 Files Generated
+                  </span>
+                </div>
+              </div>
+
+              {/* Feature Tags Footer */}
+              <div className="p-4 bg-slate-900/50 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <div className="flex items-center space-x-2 text-slate-300">
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">LangGraph AI</span>
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">Live Sandbox</span>
+                  <span className="px-2 py-0.5 bg-slate-800/80 rounded border border-slate-700/60 font-mono text-[10px]">Zero Config</span>
+                </div>
+                <span className="text-purple-400 font-medium">Production Ready</span>
               </div>
             </div>
           </div>
