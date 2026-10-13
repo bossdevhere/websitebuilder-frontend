@@ -45,40 +45,101 @@ export const Workspace: React.FC = () => {
     try {
       const proj = await projectsApi.getProjectById(session.access_token, id);
       
-      // Auto-seed starter landing page components for empty projects
+      // Auto-seed fresh starter template for empty projects
       if (!proj.files || proj.files.length === 0 || !proj.files.some((f) => f.path.endsWith("App.tsx"))) {
+        const safeTitle = proj.name || "New Project";
         const starterFiles = [
           {
-            path: "components/Navbar.tsx",
-            content: `import React, { useState } from 'react';\nimport { Sparkles, Menu, X } from 'lucide-react';\n\nexport const Navbar = () => {\n  const [isOpen, setIsOpen] = useState(false);\n  return (\n    <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">\n      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">\n        <div className="flex items-center space-x-2">\n          <div className="p-2 bg-indigo-600 rounded-xl text-white">\n            <Sparkles className="w-5 h-5" />\n          </div>\n          <span className="font-bold text-xl text-white tracking-tight">ApexVision</span>\n        </div>\n        <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">\n          <a href="#hero" className="hover:text-indigo-400 transition-colors">Home</a>\n          <a href="#about" className="hover:text-indigo-400 transition-colors">About</a>\n          <a href="#services" className="hover:text-indigo-400 transition-colors">Services</a>\n          <a href="#contact" className="hover:text-indigo-400 transition-colors">Contact</a>\n        </nav>\n        <div className="hidden md:flex items-center space-x-4">\n          <button className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-all shadow-lg shadow-indigo-600/30">Get Started</button>\n        </div>\n      </div>\n    </header>\n  );\n};`
-          },
-          {
-            path: "components/Hero.tsx",
-            content: `import React from 'react';\nimport { ArrowRight, Zap } from 'lucide-react';\n\nexport const Hero = () => {\n  return (\n    <section id="hero" className="relative py-24 px-6 overflow-hidden bg-slate-950 text-center">\n      <div className="max-w-4xl mx-auto">\n        <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-6">\n          Build Intelligence into Every <span className="text-indigo-400">Web Experience</span>\n        </h1>\n        <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-8 leading-relaxed">\n          Supercharge your digital workflow with autonomous AI agent architectures.\n        </p>\n        <button className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all shadow-xl shadow-indigo-600/30">\n          Explore Application\n        </button>\n      </div>\n    </section>\n  );\n};`
-          },
-          {
-            path: "components/About.tsx",
-            content: `import React from 'react';\nimport { CheckCircle } from 'lucide-react';\n\nexport const About = () => {\n  return (\n    <section id="about" className="py-20 px-6 bg-slate-900 border-t border-slate-800">\n      <div className="max-w-5xl mx-auto text-center">\n        <h2 className="text-3xl font-bold text-white mb-4">About Our Platform</h2>\n        <p className="text-slate-400 max-w-2xl mx-auto">We build state-of-the-art web generation engines that bridge creative vision and production code.</p>\n      </div>\n    </section>\n  );\n};`
-          },
-          {
-            path: "components/Services.tsx",
-            content: `import React from 'react';\nimport { Cpu, Code2, Globe } from 'lucide-react';\n\nexport const Services = () => {\n  return (\n    <section id="services" className="py-20 px-6 bg-slate-950 border-t border-slate-800">\n      <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8 text-center">\n        <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl">\n          <Cpu className="w-8 h-8 text-indigo-400 mx-auto mb-4" />\n          <h3 className="text-xl font-bold text-white mb-2">AI Agent Engine</h3>\n          <p className="text-slate-400 text-sm">Autonomous planning and code refactoring.</p>\n        </div>\n        <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl">\n          <Code2 className="w-8 h-8 text-indigo-400 mx-auto mb-4" />\n          <h3 className="text-xl font-bold text-white mb-2">Modular Architecture</h3>\n          <p className="text-slate-400 text-sm">Clean React component structure.</p>\n        </div>\n        <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl">\n          <Globe className="w-8 h-8 text-indigo-400 mx-auto mb-4" />\n          <h3 className="text-xl font-bold text-white mb-2">Live Preview Engine</h3>\n          <p className="text-slate-400 text-sm">Instant client-side JSX transpilation.</p>\n        </div>\n      </div>\n    </section>\n  );\n};`
-          },
-          {
-            path: "components/CTA.tsx",
-            content: `import React from 'react';\nimport { Mail } from 'lucide-react';\n\nexport const CTA = () => {\n  return (\n    <section id="contact" className="py-20 px-6 bg-slate-900 border-t border-slate-800 text-center">\n      <h2 className="text-3xl font-bold text-white mb-4">Ready to Build Your Project?</h2>\n      <p className="text-slate-300 max-w-md mx-auto mb-6">Describe your ideas to your AI developer agent to generate full applications.</p>\n    </section>\n  );\n};`
-          },
-          {
-            path: "components/Footer.tsx",
-            content: `import React from 'react';\n\nexport const Footer = () => {\n  return (\n    <footer className="bg-slate-950 border-t border-slate-800 py-8 text-center text-xs text-slate-500">\n      © {new Date().getFullYear()} AI Web App Builder. All rights reserved.\n    </footer>\n  );\n};`
-          },
-          {
             path: "App.tsx",
-            content: `import React from 'react';\nimport { Navbar } from './components/Navbar';\nimport { Hero } from './components/Hero';\nimport { About } from './components/About';\nimport { Services } from './components/Services';\nimport { CTA } from './components/CTA';\nimport { Footer } from './components/Footer';\n\nexport default function App() {\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">\n      <Navbar />\n      <Hero />\n      <About />\n      <Services />\n      <CTA />\n      <Footer />\n    </div>\n  );\n}`
+            content: `import React, { useState } from 'react';
+import { Sparkles, Code2, Rocket, ArrowRight, CheckCircle2 } from 'lucide-react';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      {/* Top Header */}
+      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-600/30">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <span className="font-bold text-lg text-white tracking-tight">${safeTitle}</span>
+        </div>
+        <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+          Ready for AI Development
+        </span>
+      </header>
+
+      {/* Hero Welcome Canvas */}
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full text-center space-y-8">
+          <div className="inline-flex p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-indigo-400 mb-2">
+            <Rocket className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-3">
+            <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">
+              Welcome to <span className="text-indigo-400">${safeTitle}</span>
+            </h1>
+            <p className="text-slate-400 text-base md:text-lg max-w-xl mx-auto leading-relaxed">
+              Your new project workspace is ready. Tell the AI assistant what you want to build, or edit this code directly to get started.
+            </p>
+          </div>
+
+          {/* Interactive React State Widget */}
+          <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-2xl max-w-md mx-auto shadow-xl space-y-4">
+            <div className="flex items-center justify-between text-sm text-slate-400">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <Code2 className="w-4 h-4 text-indigo-400" /> Interactive React State
+              </span>
+              <span className="text-xs text-indigo-400 font-mono">Count: {count}</span>
+            </div>
+            <button
+              onClick={() => setCount((c) => c + 1)}
+              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/25 active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <span>Click to test reactivity</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Prompt Ideas */}
+          <div className="pt-4 border-t border-slate-900 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
+              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full App Generation
+              </p>
+              <p className="text-[11px] text-slate-400">Ask the AI: "Build a modern dashboard with charts and dark mode"</p>
+            </div>
+            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
+              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Component Library
+              </p>
+              <p className="text-[11px] text-slate-400">Ask the AI: "Add an e-commerce catalog with search and cart drawer"</p>
+            </div>
+            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
+              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Custom Landing Page
+              </p>
+              <p className="text-[11px] text-slate-400">Ask the AI: "Create a SaaS landing page with pricing and testimonials"</p>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
+        AI Web Builder • Powered by Autonomous LLM Agent
+      </footer>
+    </div>
+  );
+}`
           },
           {
             path: "index.html",
-            content: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <title>Web Application</title>\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>`
+            content: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <title>${safeTitle}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>`
           }
         ];
 
@@ -101,6 +162,12 @@ export const Workspace: React.FC = () => {
   };
 
   useEffect(() => {
+    // Reset state when navigating to another project to avoid cross-project stale code bleed
+    setProject(null);
+    setActiveFilePath(null);
+    setLoading(true);
+    setError(null);
+
     fetchProjectData();
 
     // Fetch active LLM config
