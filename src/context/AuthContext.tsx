@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
+import { authApi } from "../services/api";
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -38,13 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, pass: string, name?: string) => {
     try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass, name }),
-      });
-      const data = await response.json();
-      if (!response.ok) return { error: data.error || "Signup failed" };
+      const data = await authApi.signup(email, pass, name);
 
       if (data.session) {
         await supabase.auth.setSession({
@@ -54,19 +50,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return {};
     } catch (err: any) {
-      return { error: err.message || "Network error during signup" };
+      return { error: err.message || "Signup failed" };
     }
   };
 
   const login = async (email: string, pass: string) => {
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass }),
-      });
-      const data = await response.json();
-      if (!response.ok) return { error: data.error || "Login failed" };
+      const data = await authApi.login(email, pass);
 
       if (data.session) {
         await supabase.auth.setSession({
@@ -76,16 +66,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return {};
     } catch (err: any) {
-      return { error: err.message || "Network error during login" };
+      return { error: err.message || "Login failed" };
     }
   };
 
   const logout = async () => {
     if (session?.access_token) {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      }).catch(() => {});
+      await authApi.logout(session.access_token).catch(() => {});
     }
     await supabase.auth.signOut();
     setUser(null);

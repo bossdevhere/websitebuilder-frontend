@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { projectsApi, Project } from "../services/api";
+import { projectsApi, Project, buildApiUrl, safeParseResponse } from "../services/api";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
@@ -171,8 +171,8 @@ export default function App() {
     fetchProjectData();
 
     // Fetch active LLM config
-    fetch("/api/llm/config")
-      .then((res) => res.json())
+    fetch(buildApiUrl("/llm/config"))
+      .then((res) => safeParseResponse(res))
       .then((data) => setLlmConfig(data))
       .catch((err) => console.error("Failed to fetch LLM config:", err));
   }, [id, session?.access_token]);
@@ -425,7 +425,7 @@ export default function App() {
             <PreviewPanel
               files={project.files || []}
               activeFilePath={activeFilePath}
-              previewUrl={`/api/runtime/projects/${project.id}/preview`}
+              previewUrl={buildApiUrl(`/runtime/projects/${project.id}/preview`)}
               isProcessing={isAgentProcessing}
               theme={theme}
             />

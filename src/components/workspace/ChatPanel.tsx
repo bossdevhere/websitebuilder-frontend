@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare, AlertTriangle } from "lucide-react";
+import { buildApiUrl, safeParseResponse } from "../../services/api";
 
 interface Conversation {
   id: string;
@@ -83,11 +84,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const fetchConversations = async () => {
     if (!projectId || !token) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/conversations`, {
+      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations`), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Unable to load conversations");
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.conversations && data.conversations.length > 0) {
         setConversations(data.conversations);
         if (!activeConversationId) {
@@ -107,11 +107,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const fetchMessages = async (convId: string) => {
     if (!projectId || !token || !convId) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/conversations/${convId}/messages`, {
+      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations/${convId}/messages`), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to fetch messages");
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.messages && data.messages.length > 0) {
         setMessages(sortMessagesChronologically(data.messages));
         return;
@@ -119,10 +118,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     } catch (err: any) {
       console.warn("Message fetch fallback:", err.message);
       try {
-        const legacyRes = await fetch(`/api/agent/projects/${projectId}/messages`, {
+        const legacyRes = await fetch(buildApiUrl(`/agent/projects/${projectId}/messages`), {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const d = await legacyRes.json();
+        const d = await safeParseResponse(legacyRes);
         if (d.messages && d.messages.length > 0) {
           setMessages(sortMessagesChronologically(d.messages));
           return;
@@ -164,7 +163,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     if (!projectId || !token) return;
 
-    const sseUrl = `/api/agent/projects/${projectId}/stream?token=${encodeURIComponent(token)}`;
+    const sseUrl = buildApiUrl(`/agent/projects/${projectId}/stream?token=${encodeURIComponent(token)}`);
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -257,7 +256,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!projectId || !token) return;
     setUiError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/conversations`, {
+      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,15 +264,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         },
         body: JSON.stringify({ title: `Chat ${conversations.length + 1}` }),
       });
-      if (!res.ok) throw new Error("Conversation creation failed");
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       if (data.conversation) {
         setConversations((prev) => [data.conversation, ...prev]);
         setActiveConversationId(data.conversation.id);
         setMessages([]);
       }
     } catch (err: any) {
-      setUiError("Conversation could not be created.");
+      setUiError(err.message || "Conversation could not be created.");
     }
   };
 
@@ -304,9 +302,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }, 180000);
 
     try {
-      let url = `/api/agent/projects/${projectId}/prompt`;
+      let url = buildApiUrl(`/agent/projects/${projectId}/prompt`);
       if (activeConversationId) {
-        url = `/api/projects/${projectId}/conversations/${activeConversationId}/messages`;
+        url = buildApiUrl(`/projects/${projectId}/conversations/${activeConversationId}/messages`);
       }
 
       const res = await fetch(url, {
@@ -318,13 +316,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         body: JSON.stringify({ content: userText, prompt: userText }),
       });
 
-      if (!res.ok) {
-        clearTimeout(timeoutId);
-        const errData = await res.json();
-        throw new Error(errData.error || "Agent execution failed");
-      }
-
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       clearTimeout(timeoutId);
       updateProcessingState(false);
       setAgentStatus(null);
