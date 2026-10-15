@@ -33,6 +33,11 @@ export async function safeParseResponse<T = any>(response: Response): Promise<T>
 
   if (!text || text.trim() === "") {
     if (!response.ok) {
+      if (response.status === 405) {
+        throw new Error(
+          `Request failed with status 405 (Method Not Allowed). The request went to Vercel instead of your Render backend. Please set VITE_API_BASE_URL in Vercel Project Settings to your Render URL and redeploy.`
+        );
+      }
       throw new Error(`Request failed with status ${response.status}`);
     }
     return {} as T;
@@ -42,10 +47,10 @@ export async function safeParseResponse<T = any>(response: Response): Promise<T>
   try {
     data = JSON.parse(text);
   } catch (_err) {
-    // Non-JSON response received (e.g. 404 HTML from Vercel or 502/503 from sleeping Render server)
-    if (response.status === 404) {
+    // Non-JSON response received (e.g. 404/405 from Vercel or 502/503 from sleeping Render server)
+    if (response.status === 404 || response.status === 405) {
       throw new Error(
-        `Backend API route not found (HTTP 404). Please ensure the backend is deployed on Render and VITE_API_BASE_URL is configured in your Vercel project environment variables.`
+        `Backend API route not reached (HTTP ${response.status}). The request went to Vercel instead of your Render backend. Please set VITE_API_BASE_URL in your Vercel project environment variables to your Render backend URL (e.g. https://websitebuilder-backend.onrender.com/api) and redeploy.`
       );
     }
     if (response.status === 502 || response.status === 503 || response.status === 504) {
