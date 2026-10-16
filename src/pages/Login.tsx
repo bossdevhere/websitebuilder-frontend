@@ -65,7 +65,9 @@ export const Login: React.FC = () => {
     if (res.error) {
       setError(res.error);
     } else {
-      navigate("/");
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirect = searchParams.get("redirect") || "/";
+      navigate(redirect);
     }
   };
 
@@ -188,7 +190,16 @@ export const Login: React.FC = () => {
           <div className="auth-fade-in mt-8 pt-6 border-t border-slate-800/80 text-center">
             <p className="text-xs text-slate-400">
               Don't have an account yet?{" "}
-              <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4">
+              <Link
+                to={
+                  new URLSearchParams(window.location.search).get("redirect")
+                    ? `/signup?redirect=${encodeURIComponent(
+                        new URLSearchParams(window.location.search).get("redirect")!
+                      )}`
+                    : "/signup"
+                }
+                className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4"
+              >
                 Create an account
               </Link>
             </p>

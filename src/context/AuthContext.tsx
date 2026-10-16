@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
-import { authApi } from "../services/api";
+import { authApi, projectsApi } from "../services";
 
 interface AuthContextType {
   user: User | null;
@@ -91,7 +91,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, pass: string, name?: string) => {
     try {
-      localStorage.removeItem("ai_builder_demo_session");
+      const currentDemoSession = localStorage.getItem("ai_builder_demo_session");
+      let demoTokenToClaim: string | null = null;
+      if (currentDemoSession) {
+        try {
+          const parsed = JSON.parse(currentDemoSession);
+          if (parsed.access_token) {
+            demoTokenToClaim = parsed.access_token;
+          }
+        } catch {}
+      }
+
       const data = await authApi.signup(email, pass, name);
 
       if (data.session?.access_token && data.session?.refresh_token) {
@@ -100,6 +110,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           refresh_token: data.session.refresh_token,
         });
       }
+
+      // Claim pending demo project into the new registered account
+      if (demoTokenToClaim && data.session?.access_token) {
+        try {
+          await projectsApi.claimDemoProject(data.session.access_token, demoTokenToClaim);
+        } catch (claimErr) {
+          console.warn("Could not transfer demo project on signup:", claimErr);
+        }
+      }
+
+      localStorage.removeItem("ai_builder_demo_session");
       return {};
     } catch (err: any) {
       return { error: err.message || "Signup failed" };
@@ -108,7 +129,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string) => {
     try {
-      localStorage.removeItem("ai_builder_demo_session");
+      const currentDemoSession = localStorage.getItem("ai_builder_demo_session");
+      let demoTokenToClaim: string | null = null;
+      if (currentDemoSession) {
+        try {
+          const parsed = JSON.parse(currentDemoSession);
+          if (parsed.access_token) {
+            demoTokenToClaim = parsed.access_token;
+          }
+        } catch {}
+      }
+
       const data = await authApi.login(email, pass);
 
       if (data.session?.access_token && data.session?.refresh_token) {
@@ -117,6 +148,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           refresh_token: data.session.refresh_token,
         });
       }
+
+      // Claim pending demo project into the logged-in account
+      if (demoTokenToClaim && data.session?.access_token) {
+        try {
+          await projectsApi.claimDemoProject(data.session.access_token, demoTokenToClaim);
+        } catch (claimErr) {
+          console.warn("Could not transfer demo project on login:", claimErr);
+        }
+      }
+
+      localStorage.removeItem("ai_builder_demo_session");
       return {};
     } catch (err: any) {
       return { error: err.message || "Login failed" };

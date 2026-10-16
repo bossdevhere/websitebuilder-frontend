@@ -42,5 +42,19 @@ export const projectsApi = {
     });
   },
 
+  claimDemoProject: async (
+    token: string,
+    demoToken: string
+  ): Promise<{ success: boolean; message: string; claimed: Project[] }> => {
+    return fetchWithAuth<{ success: boolean; message: string; claimed: Project[] }>(
+      "/projects/claim-demo",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ demoToken }),
+      }
+    );
+  },
+
   downloadProjectZip,
 };
