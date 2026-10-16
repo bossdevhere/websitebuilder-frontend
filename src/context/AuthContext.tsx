@@ -78,8 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await authApi.demoLogin();
       if (data.session && data.user) {
-        setSession(data.session);
-        setUser(data.user);
+        setSession(data.session as any);
+        setUser(data.user as any);
         localStorage.setItem("ai_builder_demo_session", JSON.stringify(data.session));
         return {};
       }
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem("ai_builder_demo_session");
       const data = await authApi.signup(email, pass, name);
 
-      if (data.session) {
+      if (data.session?.access_token && data.session?.refresh_token) {
         await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem("ai_builder_demo_session");
       const data = await authApi.login(email, pass);
 
-      if (data.session) {
+      if (data.session?.access_token && data.session?.refresh_token) {
         await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,

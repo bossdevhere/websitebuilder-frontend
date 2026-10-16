@@ -1,20 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare, AlertTriangle } from "lucide-react";
-import { buildApiUrl, safeParseResponse } from "../../services/api";
+import { chatApi, buildApiUrl } from "../../services";
+import { ChatMessage, Conversation, ThemeMode } from "../../types";
 
-interface Conversation {
-  id: string;
-  project_id: string;
-  title: string;
-  updated_at: string;
-}
-
-interface Message {
-  id: string;
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  created_at: string;
-}
+type Message = ChatMessage;
 
 const sortMessagesChronologically = (list: Message[]): Message[] => {
   return [...list].sort((a, b) => {
@@ -84,14 +73,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const fetchConversations = async () => {
     if (!projectId || !token) return;
     try {
-      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await safeParseResponse(res);
-      if (data.conversations && data.conversations.length > 0) {
-        setConversations(data.conversations);
+      const convs = await chatApi.getConversations(token, projectId);
+      if (convs && convs.length > 0) {
+        setConversations(convs);
         if (!activeConversationId) {
-          setActiveConversationId(data.conversations[0].id);
+          setActiveConversationId(convs[0].id);
         }
       }
     } catch (err: any) {
@@ -107,26 +93,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const fetchMessages = async (convId: string) => {
     if (!projectId || !token || !convId) return;
     try {
-      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations/${convId}/messages`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await safeParseResponse(res);
-      if (data.messages && data.messages.length > 0) {
-        setMessages(sortMessagesChronologically(data.messages));
+      const msgs = await chatApi.getMessages(token, projectId, convId);
+      if (msgs && msgs.length > 0) {
+        setMessages(sortMessagesChronologically(msgs as any));
         return;
       }
     } catch (err: any) {
       console.warn("Message fetch fallback:", err.message);
-      try {
-        const legacyRes = await fetch(buildApiUrl(`/agent/projects/${projectId}/messages`), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const d = await safeParseResponse(legacyRes);
-        if (d.messages && d.messages.length > 0) {
-          setMessages(sortMessagesChronologically(d.messages));
-          return;
-        }
-      } catch (e) {}
     }
 
     // LocalStorage fallback if server has no messages
@@ -256,18 +229,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!projectId || !token) return;
     setUiError(null);
     try {
-      const res = await fetch(buildApiUrl(`/projects/${projectId}/conversations`), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title: `Chat ${conversations.length + 1}` }),
-      });
-      const data = await safeParseResponse(res);
-      if (data.conversation) {
-        setConversations((prev) => [data.conversation, ...prev]);
-        setActiveConversationId(data.conversation.id);
+      const newConv = await chatApi.createConversation(token, projectId, `Chat ${conversations.length + 1}`);
+      if (newConv) {
+        setConversations((prev) => [newConv, ...prev]);
+        setActiveConversationId(newConv.id);
         setMessages([]);
       }
     } catch (err: any) {
@@ -302,21 +267,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }, 180000);
 
     try {
-      let url = buildApiUrl(`/agent/projects/${projectId}/prompt`);
-      if (activeConversationId) {
-        url = buildApiUrl(`/projects/${projectId}/conversations/${activeConversationId}/messages`);
-      }
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: userText, prompt: userText }),
-      });
-
-      const data = await safeParseResponse(res);
+      const data = await chatApi.sendMessage(token, projectId, activeConversationId, userText);
       clearTimeout(timeoutId);
       updateProcessingState(false);
       setAgentStatus(null);

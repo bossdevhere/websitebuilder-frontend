@@ -1,21 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { projectsApi, Project, buildApiUrl, safeParseResponse } from "../services/api";
+import { projectsApi, chatApi, buildApiUrl } from "../services";
+import { Project, LLMConfigInfo, ViewMode, ThemeMode } from "../types";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
 import { PreviewPanel } from "../components/workspace/PreviewPanel";
 import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Columns, Sun, Moon, Download } from "lucide-react";
-import { DownloadAuthModal } from "../components/DownloadAuthModal";
-
-interface LLMConfigInfo {
-  provider: string;
-  modelName: string;
-}
-
-type ViewMode = "code" | "preview" | "split";
-type ThemeMode = "dark" | "light";
+import { DownloadAuthModal } from "../components/common";
 
 export const Workspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -174,8 +167,8 @@ export default function App() {
     fetchProjectData();
 
     // Fetch active LLM config
-    fetch(buildApiUrl("/llm/config"))
-      .then((res) => safeParseResponse(res))
+    chatApi
+      .getLlmConfig()
       .then((data) => setLlmConfig(data))
       .catch((err) => console.error("Failed to fetch LLM config:", err));
   }, [id, session?.access_token]);
