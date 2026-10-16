@@ -65,7 +65,7 @@ export const Signup: React.FC = () => {
       setError(res.error);
     } else {
       const searchParams = new URLSearchParams(window.location.search);
-      const redirect = searchParams.get("redirect") || "/";
+      const redirect = searchParams.get("redirect") || "/dashboard";
       navigate(redirect);
     }
   };

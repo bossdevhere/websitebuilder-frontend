@@ -276,7 +276,7 @@ export default function App() {
       <div className={`max-w-md mx-auto my-12 p-6 border rounded-xl text-center space-y-4 ${isLight ? "bg-white border-slate-200" : "bg-slate-950 border-slate-800"}`}>
         <p className="text-red-400">{error || "Project not found"}</p>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/dashboard")}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors"
         >
           Back to Dashboard
@@ -291,7 +291,7 @@ export default function App() {
       <div className={`h-12 border-b px-4 flex items-center justify-between transition-colors ${isLight ? "border-slate-200 bg-white" : "border-slate-800 bg-slate-950"}`}>
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/dashboard")}
             className={`p-1 rounded transition-colors ${isLight ? "hover:bg-slate-200 text-slate-600 hover:text-slate-900" : "hover:bg-slate-800 text-slate-400 hover:text-white"}`}
             title="Back to Dashboard"
           >

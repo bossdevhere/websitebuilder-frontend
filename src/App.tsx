@@ -8,6 +8,7 @@ import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
 import { Workspace } from "./pages/Workspace";
+import { Landing } from "./pages/Landing";
 
 const AppLayout: React.FC = () => {
   const { isDark } = useTheme();
@@ -21,8 +22,9 @@ const AppLayout: React.FC = () => {
       <Navbar />
       <main className="flex-1 flex flex-col">
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route
-            path="/"
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Dashboard />

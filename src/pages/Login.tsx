@@ -68,7 +68,7 @@ export const Login: React.FC = () => {
       setError(res.error);
     } else {
       const searchParams = new URLSearchParams(window.location.search);
-      const redirect = searchParams.get("redirect") || "/";
+      const redirect = searchParams.get("redirect") || "/dashboard";
       navigate(redirect);
     }
   };
@@ -83,7 +83,7 @@ export const Login: React.FC = () => {
     if (res.error) {
       setError(res.error);
     } else {
-      navigate("/");
+      navigate("/dashboard");
     }
   };
 
