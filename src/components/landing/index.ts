@@ -5,3 +5,4 @@ export * from "./LandingWorkflow";
 export * from "./LandingFaq";
 export * from "./LandingCta";
 export * from "./LandingFooter";
+export * from "./LandingRoadmap";

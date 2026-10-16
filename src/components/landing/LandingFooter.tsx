@@ -34,6 +34,9 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onOpenLogin, onOpe
 
         {/* Quick Anchor Navigation Links */}
         <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-medium">
+          <a href="#roadmap" className="hover:text-indigo-500 transition-colors">
+            Future Upgrades
+          </a>
           <a href="#features" className="hover:text-indigo-500 transition-colors">
             Features
           </a>

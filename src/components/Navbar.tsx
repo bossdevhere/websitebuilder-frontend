@@ -66,6 +66,14 @@ export const Navbar: React.FC = () => {
         {isLandingPage && (
           <div className="hidden md:flex items-center space-x-4 text-xs font-medium">
             <a
+              href="#roadmap"
+              className={`transition-colors ${
+                isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Future Upgrades
+            </a>
+            <a
               href="#features"
               className={`transition-colors ${
                 isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import {
   LandingHero,
-  LandingPreviewDemo,
+  LandingRoadmap,
   LandingFeatures,
   LandingWorkflow,
   LandingFaq,
@@ -96,8 +96,8 @@ export const Landing: React.FC<LandingProps> = ({ initialAuthMode }) => {
         onOpenLogin={() => openAuth("login")}
       />
 
-      {/* Interactive Mock Preview Sandbox */}
-      <LandingPreviewDemo />
+      {/* Next-Gen Upgrades & Innovation Roadmap */}
+      <LandingRoadmap />
 
       {/* Core Features */}
       <LandingFeatures />
