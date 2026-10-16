@@ -8,9 +8,16 @@ import gsap from "gsap";
 interface LandingHeroProps {
   onInstantDemo: () => void;
   isDemoLoading: boolean;
+  onOpenSignup: () => void;
+  onOpenLogin: () => void;
 }
 
-export const LandingHero: React.FC<LandingHeroProps> = ({ onInstantDemo, isDemoLoading }) => {
+export const LandingHero: React.FC<LandingHeroProps> = ({
+  onInstantDemo,
+  isDemoLoading,
+  onOpenSignup,
+  onOpenLogin,
+}) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const navigate = useNavigate();
@@ -110,13 +117,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onInstantDemo, isDemoL
             </button>
           ) : (
             <>
-              <Link
-                to="/signup"
+              <button
+                type="button"
+                onClick={onOpenSignup}
                 className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-600/30 transition-all active:scale-[0.98] cursor-pointer"
               >
                 <span>Start Building for Free</span>
                 <ArrowRight className="w-4 h-4" />
-              </Link>
+              </button>
 
               <button
                 type="button"

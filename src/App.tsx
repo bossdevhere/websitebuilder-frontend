@@ -39,8 +39,8 @@ const AppLayout: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/login" element={<Landing initialAuthMode="login" />} />
+          <Route path="/signup" element={<Landing initialAuthMode="signup" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

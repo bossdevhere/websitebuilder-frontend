@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import { Sparkles, Heart } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 
-export const LandingFooter: React.FC = () => {
+interface LandingFooterProps {
+  onOpenLogin?: () => void;
+  onOpenSignup?: () => void;
+}
+
+export const LandingFooter: React.FC<LandingFooterProps> = ({ onOpenLogin, onOpenSignup }) => {
   const { isDark } = useTheme();
 
   return (
@@ -38,12 +43,32 @@ export const LandingFooter: React.FC = () => {
           <a href="#faq" className="hover:text-indigo-500 transition-colors">
             FAQ
           </a>
-          <Link to="/login" className="hover:text-indigo-500 transition-colors">
-            Sign In
-          </Link>
-          <Link to="/signup" className="hover:text-indigo-500 transition-colors">
-            Create Account
-          </Link>
+          {onOpenLogin ? (
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="hover:text-indigo-500 transition-colors cursor-pointer"
+            >
+              Sign In
+            </button>
+          ) : (
+            <Link to="/login" className="hover:text-indigo-500 transition-colors">
+              Sign In
+            </Link>
+          )}
+          {onOpenSignup ? (
+            <button
+              type="button"
+              onClick={onOpenSignup}
+              className="hover:text-indigo-500 transition-colors cursor-pointer"
+            >
+              Create Account
+            </button>
+          ) : (
+            <Link to="/signup" className="hover:text-indigo-500 transition-colors">
+              Create Account
+            </Link>
+          )}
         </div>
 
         {/* Status Pill & Copyright */}

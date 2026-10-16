@@ -7,9 +7,14 @@ import { useTheme } from "../../context/ThemeContext";
 interface LandingCtaProps {
   onInstantDemo: () => void;
   isDemoLoading: boolean;
+  onOpenSignup: () => void;
 }
 
-export const LandingCta: React.FC<LandingCtaProps> = ({ onInstantDemo, isDemoLoading }) => {
+export const LandingCta: React.FC<LandingCtaProps> = ({
+  onInstantDemo,
+  isDemoLoading,
+  onOpenSignup,
+}) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const navigate = useNavigate();
@@ -52,13 +57,14 @@ export const LandingCta: React.FC<LandingCtaProps> = ({ onInstantDemo, isDemoLoa
               </button>
             ) : (
               <>
-                <Link
-                  to="/signup"
+                <button
+                  type="button"
+                  onClick={onOpenSignup}
                   className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-600/30 transition-all active:scale-[0.98] cursor-pointer"
                 >
                   <span>Create Free Account</span>
                   <ArrowRight className="w-4 h-4" />
-                </Link>
+                </button>
 
                 <button
                   type="button"
