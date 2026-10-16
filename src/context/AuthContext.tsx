@@ -8,8 +8,10 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isDemo: boolean;
   signup: (email: string, pass: string, name?: string) => Promise<{ error?: string }>;
   login: (email: string, pass: string) => Promise<{ error?: string }>;
+  demoLogin: () => Promise<{ error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -20,26 +22,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const isDemo = Boolean(
+    (user as any)?.is_demo ||
+    (user as any)?.user_metadata?.is_demo ||
+    user?.email === "demo@aiwebstudio.dev" ||
+    session?.access_token?.startsWith("demo-token-")
+  );
+
   useEffect(() => {
-    // Check initial auth session
+    // 1. Check for active demo session in localStorage
+    const savedDemo = localStorage.getItem("ai_builder_demo_session");
+    if (savedDemo) {
+      try {
+        const parsed = JSON.parse(savedDemo);
+        if (parsed?.access_token && parsed?.user) {
+          setSession(parsed);
+          setUser(parsed.user);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // 2. Check initial Supabase auth session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth state changes
+    // 3. Listen for Supabase auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (!localStorage.getItem("ai_builder_demo_session")) {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Cleanup demo project when demo user exits or closes tab
+  useEffect(() => {
+    const handleUnload = () => {
+      if (isDemo && session?.access_token) {
+        authApi.cleanupDemo(session.access_token);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [isDemo, session?.access_token]);
+
+  const demoLogin = async () => {
+    try {
+      const data = await authApi.demoLogin();
+      if (data.session && data.user) {
+        setSession(data.session);
+        setUser(data.user);
+        localStorage.setItem("ai_builder_demo_session", JSON.stringify(data.session));
+        return {};
+      }
+      return { error: "Failed to create demo session" };
+    } catch (err: any) {
+      return { error: err.message || "Failed to start demo session" };
+    }
+  };
+
   const signup = async (email: string, pass: string, name?: string) => {
     try {
+      localStorage.removeItem("ai_builder_demo_session");
       const data = await authApi.signup(email, pass, name);
 
       if (data.session) {
@@ -56,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string) => {
     try {
+      localStorage.removeItem("ai_builder_demo_session");
       const data = await authApi.login(email, pass);
 
       if (data.session) {
@@ -72,7 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     if (session?.access_token) {
-      await authApi.logout(session.access_token).catch(() => {});
+      if (isDemo) {
+        await authApi.cleanupDemo(session.access_token);
+        localStorage.removeItem("ai_builder_demo_session");
+      } else {
+        await authApi.logout(session.access_token).catch(() => {});
+      }
     }
     await supabase.auth.signOut();
     setUser(null);
@@ -80,7 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signup, login, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, isDemo, signup, login, demoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

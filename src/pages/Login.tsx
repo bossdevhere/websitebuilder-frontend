@@ -10,7 +10,8 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
 
   const formContainerRef = useRef<HTMLDivElement>(null);
@@ -68,9 +69,18 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail("developer@example.com");
-    setPassword("password123");
+  const handleInstantDemoLogin = async () => {
+    setError(null);
+    setIsDemoLoading(true);
+
+    const res = await demoLogin();
+    setIsDemoLoading(false);
+
+    if (res.error) {
+      setError(res.error);
+    } else {
+      navigate("/");
+    }
   };
 
   return (
@@ -160,15 +170,16 @@ export const Login: React.FC = () => {
                 </button>
               </div>
 
-              {/* Quick Demo Autofill Helper */}
+              {/* One-Click Instant Demo Login */}
               <div className="auth-fade-in pt-1">
                 <button
                   type="button"
-                  onClick={handleFillDemo}
-                  className="w-full py-2 px-3 border border-slate-800 hover:border-slate-700 bg-slate-950/50 text-slate-400 hover:text-slate-200 text-xs rounded-xl transition-all flex items-center justify-center space-x-1.5"
+                  disabled={isSubmitting || isDemoLoading}
+                  onClick={handleInstantDemoLogin}
+                  className="w-full py-2.5 px-3 border border-amber-500/30 hover:border-amber-500/60 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 text-xs font-semibold rounded-xl transition-all shadow-md shadow-amber-500/10 flex items-center justify-center space-x-2 active:scale-[0.99] disabled:opacity-50"
                 >
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Autofill Sample Demo Account</span>
+                  <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                  <span>{isDemoLoading ? "Starting Demo Session..." : "⚡ Explore Demo Workspace (1-Click)"}</span>
                 </button>
               </div>
             </form>

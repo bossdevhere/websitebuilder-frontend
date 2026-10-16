@@ -6,7 +6,8 @@ import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
 import { PreviewPanel } from "../components/workspace/PreviewPanel";
-import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Columns, Sun, Moon } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Columns, Sun, Moon, Download } from "lucide-react";
+import { DownloadAuthModal } from "../components/DownloadAuthModal";
 
 interface LLMConfigInfo {
   provider: string;
@@ -18,7 +19,7 @@ type ThemeMode = "dark" | "light";
 
 export const Workspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { session } = useAuth();
+  const { session, isDemo } = useAuth();
   const navigate = useNavigate();
 
   const [project, setProject] = useState<Project | null>(null);
@@ -28,6 +29,8 @@ export const Workspace: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     return (localStorage.getItem("app_theme") as ThemeMode) || "dark";
   });
@@ -259,6 +262,22 @@ export default function App() {
     }
   };
 
+  const handleDownloadCode = async () => {
+    if (isDemo) {
+      setIsDownloadModalOpen(true);
+      return;
+    }
+    if (!project) return;
+    setIsDownloading(true);
+    try {
+      await projectsApi.downloadProjectZip(project);
+    } catch (err: any) {
+      alert("Failed to download project code: " + err.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={`flex items-center justify-center min-h-[80vh] space-x-2 ${isLight ? "text-slate-600 bg-slate-50" : "text-slate-400 bg-slate-950"}`}>
@@ -295,6 +314,12 @@ export default function App() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className={`font-bold text-base truncate ${isLight ? "text-slate-900" : "text-white"}`}>{project.name}</h1>
+
+          {isDemo && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center space-x-1">
+              <span>⚡ Demo Mode</span>
+            </span>
+          )}
 
           {/* Active LLM Provider Badge */}
           {llmConfig && (
@@ -375,6 +400,24 @@ export default function App() {
           </div>
 
           <button
+            onClick={handleDownloadCode}
+            disabled={isDownloading}
+            className={`flex items-center space-x-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ${
+              isLight
+                ? "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800"
+                : "bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200 hover:text-white"
+            }`}
+            title={isDemo ? "Sign up to download code" : "Download Project Code (.ZIP)"}
+          >
+            {isDownloading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-indigo-400" />
+            )}
+            <span>Download Code</span>
+          </button>
+
+          <button
             onClick={() => setViewMode("preview")}
             className="flex items-center space-x-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-medium transition-colors shadow-sm"
           >
@@ -432,6 +475,13 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Code Download Gating Modal for Demo Guest */}
+      <DownloadAuthModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        projectName={project.name}
+      />
     </div>
   );
 };

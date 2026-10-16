@@ -18,9 +18,12 @@ import {
   Briefcase,
   Smartphone,
   ExternalLink,
-  Code2
+  Code2,
+  Download,
+  AlertCircle
 } from "lucide-react";
 import gsap from "gsap";
+import { DownloadAuthModal } from "../components/DownloadAuthModal";
 
 const STARTER_TEMPLATES = [
   {
@@ -81,7 +84,7 @@ function getProjectBannerImage(id: string, index: number): string {
 }
 
 export const Dashboard: React.FC = () => {
-  const { user, session } = useAuth();
+  const { user, session, isDemo } = useAuth();
   const navigate = useNavigate();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -91,6 +94,11 @@ export const Dashboard: React.FC = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [selectedProjectName, setSelectedProjectName] = useState("");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [demoLimitNotice, setDemoLimitNotice] = useState<string | null>(null);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const modalContentRef = useRef<HTMLDivElement>(null);
@@ -134,6 +142,18 @@ export const Dashboard: React.FC = () => {
     }
   }, [isModalOpen]);
 
+  const handleOpenCreateModal = () => {
+    if (isDemo && projects.length >= 1) {
+      setDemoLimitNotice(
+        "Demo accounts are limited to 1 active project at a time. Delete your current workspace to create a new one, or sign up for free to build unlimited permanent projects!"
+      );
+      return;
+    }
+    setName("");
+    setDescription("");
+    setIsModalOpen(true);
+  };
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !session?.access_token) return;
@@ -153,6 +173,12 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleSelectTemplate = (template: typeof STARTER_TEMPLATES[0]) => {
+    if (isDemo && projects.length >= 1) {
+      setDemoLimitNotice(
+        "Demo accounts are limited to 1 active project at a time. Delete your current workspace to launch a new template, or sign up for free to unlock unlimited workspaces!"
+      );
+      return;
+    }
     setName(template.title);
     setDescription(template.description);
     setIsModalOpen(true);
@@ -168,6 +194,26 @@ export const Dashboard: React.FC = () => {
       } catch (err: any) {
         alert("Failed to delete project: " + err.message);
       }
+    }
+  };
+
+  const handleDownloadProject = async (e: React.MouseEvent, proj: Project) => {
+    e.stopPropagation();
+    if (isDemo) {
+      setSelectedProjectName(proj.name);
+      setIsDownloadModalOpen(true);
+      return;
+    }
+    if (!session?.access_token) return;
+
+    setDownloadingId(proj.id);
+    try {
+      const fullProject = await projectsApi.getProjectById(session.access_token, proj.id);
+      await projectsApi.downloadProjectZip(fullProject);
+    } catch (err: any) {
+      alert("Failed to download project code: " + err.message);
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -208,11 +254,7 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {
-                setName("");
-                setDescription("");
-                setIsModalOpen(true);
-              }}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-xl shadow-indigo-600/25 active:scale-[0.98] self-start md:self-auto"
             >
               <Plus className="w-5 h-5" />
@@ -256,6 +298,39 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 mt-10 space-y-12">
+        {/* Demo Mode Active Notification Banner */}
+        {isDemo && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-indigo-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl backdrop-blur-md">
+            <div className="flex items-start space-x-3.5">
+              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl mt-0.5 sm:mt-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-white text-sm">Guest Demo Workspace Active</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    1 Active Project Limit
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                    Auto-clears on exit
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1.5 leading-relaxed max-w-2xl">
+                  You are exploring as a guest. Demo projects are temporary and will be cleared when you close the tab. Create a free registered account to save unlimited workspaces, collaborate, and download complete source code!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3 w-full sm:w-auto justify-end shrink-0">
+              <button
+                onClick={() => navigate("/signup")}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/25 transition-all"
+              >
+                Sign Up for Free Account
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Template Starters Section */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -354,11 +429,7 @@ export const Dashboard: React.FC = () => {
                 Start by creating your first project workspace. You can describe your web app idea to the AI agent to generate full code in seconds.
               </p>
               <button
-                onClick={() => {
-                  setName("");
-                  setDescription("");
-                  setIsModalOpen(true);
-                }}
+                onClick={handleOpenCreateModal}
                 className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-600/25"
               >
                 <Sparkles className="w-4 h-4" />
@@ -392,13 +463,27 @@ export const Dashboard: React.FC = () => {
                           React + Tailwind
                         </span>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteProject(e, project.id)}
-                        className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-red-400 bg-slate-950/80 hover:bg-slate-900 backdrop-blur-md rounded-lg transition-colors border border-slate-800"
-                        title="Delete Workspace"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="absolute top-3 right-3 flex items-center space-x-1.5 z-10">
+                        <button
+                          onClick={(e) => handleDownloadProject(e, project)}
+                          disabled={downloadingId === project.id}
+                          className="p-1.5 text-slate-300 hover:text-indigo-300 bg-slate-950/80 hover:bg-slate-900 backdrop-blur-md rounded-lg transition-colors border border-slate-800"
+                          title={isDemo ? "Download Code (Sign up required)" : "Download Source Code (.ZIP)"}
+                        >
+                          {downloadingId === project.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteProject(e, project.id)}
+                          className="p-1.5 text-slate-300 hover:text-red-400 bg-slate-950/80 hover:bg-slate-900 backdrop-blur-md rounded-lg transition-colors border border-slate-800"
+                          title="Delete Workspace"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Card Body */}
@@ -413,7 +498,15 @@ export const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-                        <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
+                        <button
+                          onClick={(e) => handleDownloadProject(e, project)}
+                          disabled={downloadingId === project.id}
+                          className="flex items-center space-x-1 text-slate-400 hover:text-indigo-400 transition-colors"
+                          title={isDemo ? "Sign in to download code" : "Download Project ZIP"}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download Code</span>
+                        </button>
                         <span className="flex items-center space-x-1 text-indigo-400 font-medium group-hover:translate-x-1 transition-transform">
                           <span>Open Workspace</span>
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -495,6 +588,53 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Demo Project Limit Notice Modal */}
+      {demoLimitNotice && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-slate-950 border border-amber-500/30 w-full max-w-md rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Demo Limit Reached</h3>
+                <p className="text-xs text-amber-400/90 font-medium">1 Active Project in Guest Mode</p>
+              </div>
+            </div>
+            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6">
+              {demoLimitNotice}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDemoLimitNotice(null)}
+                className="w-full sm:w-auto px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors text-center"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDemoLimitNotice(null);
+                  navigate("/signup");
+                }}
+                className="w-full sm:w-auto px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 text-center"
+              >
+                Sign Up for Free (Unlimited)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Code Download Gating Modal for Demo Guest */}
+      <DownloadAuthModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        projectName={selectedProjectName}
+      />
     </div>
   );
 };
