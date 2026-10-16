@@ -26,6 +26,7 @@ import {
   DemoBanner,
   CreateProjectModal,
 } from "../components/dashboard";
+import { useTheme } from "../context/ThemeContext";
 
 const STARTER_TEMPLATES: StarterTemplate[] = [
   {
@@ -68,6 +69,7 @@ const STARTER_TEMPLATES: StarterTemplate[] = [
 
 export const Dashboard: React.FC = () => {
   const { user, session, isDemo } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -200,11 +202,19 @@ export const Dashboard: React.FC = () => {
     "Developer";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-16">
+    <div
+      className={`min-h-screen pb-16 transition-colors duration-200 ${
+        isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+      }`}
+    >
       {/* Hero Welcome Banner */}
       <div
         ref={heroRef}
-        className="relative border-b border-slate-800 bg-gradient-to-b from-slate-900/80 via-slate-950 to-slate-950 px-6 py-12 overflow-hidden"
+        className={`relative border-b px-6 py-12 overflow-hidden transition-colors ${
+          isDark
+            ? "border-slate-800 bg-gradient-to-b from-slate-900/80 via-slate-950 to-slate-950"
+            : "border-slate-200 bg-gradient-to-b from-indigo-50/60 via-white to-slate-50"
+        }`}
       >
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -212,21 +222,38 @@ export const Dashboard: React.FC = () => {
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <div>
-              <div className="inline-flex items-center space-x-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs text-indigo-400 font-medium mb-3">
+              <div
+                className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium mb-3 ${
+                  isDark
+                    ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+                    : "bg-indigo-50 border border-indigo-200 text-indigo-600"
+                }`}
+              >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Next-Gen Autonomous Agent Studio</span>
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-2">
-                Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">{userDisplayName}</span>
+              <h1
+                className={`text-3xl md:text-4xl font-extrabold tracking-tight mb-2 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                Welcome back,{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">
+                  {userDisplayName}
+                </span>
               </h1>
-              <p className="text-slate-400 text-sm md:text-base max-w-2xl leading-relaxed">
+              <p
+                className={`text-sm md:text-base max-w-2xl leading-relaxed ${
+                  isDark ? "text-slate-400" : "text-slate-600"
+                }`}
+              >
                 Create, customize, and preview complete React applications with conversational AI agents.
               </p>
             </div>
 
             <button
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-xl shadow-indigo-600/25 active:scale-[0.98] self-start md:self-auto"
+              className="inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-xl shadow-indigo-600/25 active:scale-[0.98] self-start md:self-auto cursor-pointer"
             >
               <Plus className="w-5 h-5" />
               <span>Create New Project</span>
@@ -235,33 +262,69 @@ export const Dashboard: React.FC = () => {
 
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-            <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center space-x-3 backdrop-blur-md">
-              <div className="p-2.5 bg-indigo-600/20 text-indigo-400 rounded-lg">
+            <div
+              className={`p-4 rounded-xl flex items-center space-x-3 backdrop-blur-md border transition-all ${
+                isDark ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              }`}
+            >
+              <div className="p-2.5 bg-indigo-600/15 text-indigo-500 rounded-lg">
                 <FolderCode className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Your Workspaces</p>
-                <p className="text-xl font-bold text-white">{projects.length} {projects.length === 1 ? "Project" : "Projects"}</p>
+                <p
+                  className={`text-xs font-medium uppercase tracking-wider ${
+                    isDark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  Your Workspaces
+                </p>
+                <p className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                  {projects.length} {projects.length === 1 ? "Project" : "Projects"}
+                </p>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center space-x-3 backdrop-blur-md">
-              <div className="p-2.5 bg-purple-600/20 text-purple-400 rounded-lg">
+            <div
+              className={`p-4 rounded-xl flex items-center space-x-3 backdrop-blur-md border transition-all ${
+                isDark ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              }`}
+            >
+              <div className="p-2.5 bg-purple-600/15 text-purple-500 rounded-lg">
                 <Cpu className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">AI Code Engine</p>
-                <p className="text-xl font-bold text-white">Gemini 2.5 Flash</p>
+                <p
+                  className={`text-xs font-medium uppercase tracking-wider ${
+                    isDark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  AI Code Engine
+                </p>
+                <p className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                  Gemini 2.5 Flash
+                </p>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center space-x-3 backdrop-blur-md">
-              <div className="p-2.5 bg-emerald-600/20 text-emerald-400 rounded-lg">
+            <div
+              className={`p-4 rounded-xl flex items-center space-x-3 backdrop-blur-md border transition-all ${
+                isDark ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              }`}
+            >
+              <div className="p-2.5 bg-emerald-600/15 text-emerald-500 rounded-lg">
                 <Layers className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Live Sandbox</p>
-                <p className="text-xl font-bold text-white">Babel Standalone</p>
+                <p
+                  className={`text-xs font-medium uppercase tracking-wider ${
+                    isDark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  Live Sandbox
+                </p>
+                <p className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                  Babel Standalone
+                </p>
               </div>
             </div>
           </div>
@@ -276,11 +339,17 @@ export const Dashboard: React.FC = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-                <LayoutDashboard className="w-4 h-4 text-indigo-400" />
+              <h2
+                className={`text-lg font-bold flex items-center space-x-2 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4 text-indigo-500" />
                 <span>Start with a Recommended Blueprint</span>
               </h2>
-              <p className="text-xs text-slate-400">Launch a new AI application from curated industry blueprints.</p>
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Launch a new AI application from curated industry blueprints.
+              </p>
             </div>
           </div>
 
@@ -295,11 +364,15 @@ export const Dashboard: React.FC = () => {
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-                <FolderCode className="w-5 h-5 text-indigo-400" />
+              <h2
+                className={`text-xl font-bold flex items-center space-x-2 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                <FolderCode className="w-5 h-5 text-indigo-500" />
                 <span>Your Active Workspaces</span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                 {projects.length} {projects.length === 1 ? "project" : "projects"} generated
               </p>
             </div>
@@ -307,43 +380,71 @@ export const Dashboard: React.FC = () => {
             {/* Search Input */}
             {projects.length > 0 && (
               <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                <Search
+                  className={`w-4 h-4 absolute left-3 top-2.5 pointer-events-none ${
+                    isDark ? "text-slate-400" : "text-slate-400"
+                  }`}
+                />
                 <input
                   type="text"
                   placeholder="Filter projects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                  className={`w-full pl-9 pr-3 py-1.5 rounded-lg text-xs transition-all focus:outline-none focus:border-indigo-500 border ${
+                    isDark
+                      ? "bg-slate-900 border-slate-800 text-white placeholder-slate-500"
+                      : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 shadow-sm"
+                  }`}
                 />
               </div>
             )}
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-slate-400 space-x-2">
+            <div
+              className={`flex items-center justify-center py-20 space-x-2 ${
+                isDark ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
               <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
               <span className="text-sm">Loading your workspaces...</span>
             </div>
           ) : projects.length === 0 ? (
-            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-12 text-center max-w-lg mx-auto my-8">
-              <div className="w-16 h-16 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-400">
+            <div
+              className={`border rounded-2xl p-12 text-center max-w-lg mx-auto my-8 ${
+                isDark ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              }`}
+            >
+              <div className="w-16 h-16 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-500">
                 <Code2 className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">No projects created yet</h3>
-              <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+              <h3 className={`text-lg font-bold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+                No projects created yet
+              </h3>
+              <p
+                className={`text-sm mb-6 leading-relaxed ${
+                  isDark ? "text-slate-400" : "text-slate-600"
+                }`}
+              >
                 Start by creating your first project workspace. You can describe your web app idea to the AI agent to generate full code in seconds.
               </p>
               <button
                 onClick={handleOpenCreateModal}
-                className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-600/25"
+                className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Create First Workspace</span>
               </button>
             </div>
           ) : filteredProjects.length === 0 ? (
-            <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-8 text-center">
-              <p className="text-slate-400 text-sm">No projects matched your search "{searchQuery}".</p>
+            <div
+              className={`border rounded-xl p-8 text-center ${
+                isDark ? "bg-slate-900/30 border-slate-800" : "bg-white border-slate-200 shadow-sm"
+              }`}
+            >
+              <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                No projects matched your search "{searchQuery}".
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

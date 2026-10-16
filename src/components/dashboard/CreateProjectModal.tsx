@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { Sparkles } from "lucide-react";
 import gsap from "gsap";
+import { useTheme } from "../../context/ThemeContext";
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onSubmit,
   onClose,
 }) => {
+  const { isDark } = useTheme();
   const modalContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,7 +43,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div
         ref={modalContentRef}
-        className="bg-slate-950 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative overflow-hidden"
+        className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl relative overflow-hidden border ${
+          isDark
+            ? "bg-slate-950 border-slate-800 text-white"
+            : "bg-white border-slate-200 text-slate-900"
+        }`}
       >
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -50,14 +56,22 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Create New Workspace</h2>
-            <p className="text-xs text-slate-400">Initialize a fresh React environment with live AI assistant.</p>
+            <h2 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+              Create New Workspace
+            </h2>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Initialize a fresh React environment with live AI assistant.
+            </p>
           </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+            <label
+              className={`block text-xs font-semibold mb-1.5 uppercase tracking-wider ${
+                isDark ? "text-slate-300" : "text-slate-700"
+              }`}
+            >
               Project Name *
             </label>
             <input
@@ -66,12 +80,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               placeholder="e.g. Modern Coffee Roastery"
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              className={`w-full px-3.5 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                isDark
+                  ? "bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:border-indigo-500"
+                  : "bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+            <label
+              className={`block text-xs font-semibold mb-1.5 uppercase tracking-wider ${
+                isDark ? "text-slate-300" : "text-slate-700"
+              }`}
+            >
               Description / Goal (Optional)
             </label>
             <textarea
@@ -79,7 +101,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               placeholder="Describe what you want to build or features you'd like..."
               value={description}
               onChange={(e) => onDescriptionChange(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              className={`w-full px-3.5 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                isDark
+                  ? "bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:border-indigo-500"
+                  : "bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500"
+              }`}
             />
           </div>
 
@@ -87,14 +113,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 text-xs text-slate-400 hover:text-white transition-colors"
+              className={`px-4 py-2.5 text-xs transition-colors cursor-pointer ${
+                isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
+              }`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isCreating}
-              className="px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50 active:scale-[0.98]"
+              className="px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50 active:scale-[0.98] cursor-pointer"
             >
               {isCreating ? "Initializing Workspace..." : "Create & Open Workspace"}
             </button>

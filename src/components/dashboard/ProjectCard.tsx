@@ -1,6 +1,7 @@
 import React from "react";
 import { Trash2, Download, ArrowRight, Loader2 } from "lucide-react";
 import { Project } from "../../types";
+import { useTheme } from "../../context/ThemeContext";
 
 const CARD_BANNER_IMAGES = [
   "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
@@ -40,12 +41,17 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onDelete,
   onDownload,
 }) => {
+  const { isDark } = useTheme();
   const bannerImg = getProjectBannerImage(project.id, index);
 
   return (
     <div
       onClick={() => onOpen(project.id)}
-      className="project-card group bg-slate-900/50 border border-slate-800 hover:border-indigo-500/50 rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-2xl hover:shadow-indigo-500/10 flex flex-col justify-between overflow-hidden"
+      className={`project-card group rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden border ${
+        isDark
+          ? "bg-slate-900/50 border-slate-800 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10"
+          : "bg-white border-slate-200 hover:border-indigo-400 shadow-sm hover:shadow-md"
+      }`}
     >
       {/* Card Banner Image */}
       <div className="h-32 w-full relative overflow-hidden bg-slate-950">
@@ -54,7 +60,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           alt={project.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 filter brightness-90"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+        <div
+          className={`absolute inset-0 bg-gradient-to-t ${
+            isDark
+              ? "from-slate-950 via-slate-950/30 to-transparent"
+              : "from-slate-900/80 via-slate-900/20 to-transparent"
+          }`}
+        />
         <div className="absolute top-3 left-3 flex items-center space-x-1.5">
           <span className="text-[10px] font-semibold bg-slate-950/80 backdrop-blur-md text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md">
             React + Tailwind
@@ -86,25 +98,47 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       {/* Card Body */}
       <div className="p-5 flex-1 flex flex-col justify-between">
         <div>
-          <h3 className="font-bold text-white text-base mb-1.5 group-hover:text-indigo-300 transition-colors truncate">
+          <h3
+            className={`font-bold text-base mb-1.5 transition-colors truncate ${
+              isDark
+                ? "text-white group-hover:text-indigo-300"
+                : "text-slate-900 group-hover:text-indigo-600"
+            }`}
+          >
             {project.name}
           </h3>
-          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4">
+          <p
+            className={`text-xs line-clamp-2 leading-relaxed mb-4 ${
+              isDark ? "text-slate-400" : "text-slate-600"
+            }`}
+          >
             {project.description || "Interactive AI web application workspace."}
           </p>
         </div>
 
-        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+        <div
+          className={`pt-3 border-t flex items-center justify-between text-[11px] ${
+            isDark ? "border-slate-800/80 text-slate-500" : "border-slate-100 text-slate-500"
+          }`}
+        >
           <button
             onClick={(e) => onDownload(e, project)}
             disabled={isDownloading}
-            className="flex items-center space-x-1 text-slate-400 hover:text-indigo-400 transition-colors"
+            className={`flex items-center space-x-1 transition-colors ${
+              isDark
+                ? "text-slate-400 hover:text-indigo-400"
+                : "text-slate-600 hover:text-indigo-600"
+            }`}
             title={isDemo ? "Sign in to download code" : "Download Project ZIP"}
           >
             <Download className="w-3.5 h-3.5" />
             <span>Download Code</span>
           </button>
-          <span className="flex items-center space-x-1 text-indigo-400 font-medium group-hover:translate-x-1 transition-transform">
+          <span
+            className={`flex items-center space-x-1 font-medium group-hover:translate-x-1 transition-transform ${
+              isDark ? "text-indigo-400" : "text-indigo-600"
+            }`}
+          >
             <span>Open Workspace</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </span>

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { projectsApi, chatApi, buildApiUrl } from "../services";
-import { Project, LLMConfigInfo, ViewMode, ThemeMode } from "../types";
+import { Project, LLMConfigInfo, ViewMode } from "../types";
 import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
@@ -13,6 +14,7 @@ import { DownloadAuthModal } from "../components/common";
 export const Workspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { session, isDemo } = useAuth();
+  const { theme, isLight, isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [project, setProject] = useState<Project | null>(null);
@@ -24,17 +26,6 @@ export const Workspace: React.FC = () => {
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    return (localStorage.getItem("app_theme") as ThemeMode) || "dark";
-  });
-
-  const isLight = theme === "light";
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    localStorage.setItem("app_theme", nextTheme);
-  };
 
   const fetchProjectData = async () => {
     if (!id || !session?.access_token) return;
