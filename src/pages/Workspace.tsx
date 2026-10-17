@@ -8,7 +8,7 @@ import { FileExplorer } from "../components/workspace/FileExplorer";
 import { CodeEditor } from "../components/workspace/CodeEditor";
 import { ChatPanel } from "../components/workspace/ChatPanel";
 import { PreviewPanel } from "../components/workspace/PreviewPanel";
-import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Columns, Sun, Moon, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Cpu, Code, Eye, Sun, Moon, Download } from "lucide-react";
 import { DownloadAuthModal } from "../components/common";
 
 export const Workspace: React.FC = () => {
@@ -22,7 +22,7 @@ export const Workspace: React.FC = () => {
   const [llmConfig, setLlmConfig] = useState<LLMConfigInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -354,20 +354,6 @@ export default function App() {
               <span>Code</span>
             </button>
             <button
-              onClick={() => setViewMode("split")}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "split"
-                  ? "bg-indigo-600 text-white"
-                  : isLight
-                  ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-              title="Split View (Explorer + Editor + Live Preview)"
-            >
-              <Columns className="w-3.5 h-3.5" />
-              <span>Split</span>
-            </button>
-            <button
               onClick={() => setViewMode("preview")}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                 viewMode === "preview"
@@ -423,8 +409,8 @@ export default function App() {
           theme={theme}
         />
 
-        {/* Middle: File Explorer Sidebar (Hidden when in Preview mode; visible in Code & Split modes) */}
-        {(viewMode === "code" || viewMode === "split") && (
+        {/* Middle: File Explorer Sidebar (Visible in Code mode; hidden in Preview mode) */}
+        {viewMode === "code" && (
           <FileExplorer
             files={project.files || []}
             activeFilePath={activeFilePath}
@@ -435,9 +421,9 @@ export default function App() {
           />
         )}
 
-        {/* Right Pane(s): Monaco Code Editor & Interactive PreviewPanel */}
-        {(viewMode === "code" || viewMode === "split") && (
-          <div className={viewMode === "split" ? "w-1/2 flex flex-col" : "flex-1 flex flex-col"}>
+        {/* Right Pane: Monaco Code Editor (Code Mode) or Interactive PreviewPanel (Preview Mode) */}
+        {viewMode === "code" && (
+          <div className="flex-1 flex flex-col">
             <CodeEditor
               filePath={activeFilePath}
               content={activeFile ? activeFile.content : ""}
@@ -447,8 +433,8 @@ export default function App() {
           </div>
         )}
 
-        {(viewMode === "preview" || viewMode === "split") && (
-          <div className={viewMode === "split" ? "w-1/2 flex flex-col" : "flex-1 flex flex-col"}>
+        {viewMode === "preview" && (
+          <div className="flex-1 flex flex-col">
             <PreviewPanel
               files={project.files || []}
               activeFilePath={activeFilePath}

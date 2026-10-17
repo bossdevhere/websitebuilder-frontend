@@ -1,4 +1,4 @@
-export type ViewMode = "code" | "preview" | "split";
+export type ViewMode = "code" | "preview";
 export type ThemeMode = "dark" | "light";
 
 export interface LLMConfigInfo {
