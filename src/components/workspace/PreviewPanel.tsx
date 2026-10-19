@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Sparkles } from "lucide-react";
+import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Sparkles, Maximize2 } from "lucide-react";
 import * as Babel from "@babel/standalone";
 
 interface ProjectFile {
@@ -22,9 +22,25 @@ const transpileCache = new Map<string, string>();
 
 export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, isProcessing, theme = "dark" }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>("desktop");
+  const [scaleMode, setScaleMode] = useState<"100" | "fit">("100");
+  const [containerWidth, setContainerWidth] = useState<number>(0);
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [srcDoc, setSrcDoc] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const isLight = theme === "light";
 
@@ -290,8 +306,52 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
         </script>
       `;
 
+      const zeroOverflowResetCss = `
+        <style id="preview-viewport-resets">
+          *, *::before, *::after {
+            box-sizing: border-box !important;
+          }
+          html {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            scroll-behavior: smooth;
+          }
+          body {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            position: relative !important;
+          }
+          #root {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+            min-height: 100vh !important;
+          }
+          /* Neutralize Tailwind w-screen 100vw scrollbar bug */
+          .w-screen {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .min-w-screen {
+            min-width: 100% !important;
+            max-width: 100% !important;
+          }
+          /* Media boundary containment */
+          img, video, canvas, svg {
+            max-width: 100%;
+          }
+        </style>
+      `;
+
       const reactHeader = `
         ${consoleSilenceScript}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -300,6 +360,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           tailwind.config = {
             theme: {
               extend: {
+                width: {
+                  screen: '100%',
+                },
+                maxWidth: {
+                  screen: '100%',
+                },
                 fontFamily: {
                   sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
                   display: ['"Space Grotesk"', 'sans-serif'],
@@ -309,6 +375,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             }
           };
         </script>
+        ${zeroOverflowResetCss}
         <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
         <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -491,6 +558,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
       if (indexHtmlFile && indexHtmlFile.content.trim().length > 0) {
         let html = indexHtmlFile.content;
 
+        // Ensure html and body have overflow-x-hidden and w-full max-w-full
+        if (!html.includes("overflow-x-hidden")) {
+          html = html.replace(/<html(?![^>]*overflow-x-hidden)/i, '<html class="overflow-x-hidden scroll-smooth"');
+          html = html.replace(/<body(?![^>]*overflow-x-hidden)/i, '<body class="overflow-x-hidden w-full max-w-full"');
+        }
+
         const headMatch = html.match(/<head[^>]*>/i);
         const scriptsToInject = `${componentScriptsHtml}\n${mainScriptHtml}\n${mountRenderScript}`;
         const styleTag = combinedCss.trim().length > 0 ? `  <style>\n${combinedCss}\n</style>\n` : "";
@@ -501,7 +574,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             : '';
           const headerToInject = !html.includes("react.development.js")
             ? reactHeader
-            : `${consoleSilenceScript}\n${gsapScript}${modulePolyfill}`;
+            : `${consoleSilenceScript}\n${zeroOverflowResetCss}\n${gsapScript}${modulePolyfill}`;
           html = html.replace(headMatch[0], `${headMatch[0]}\n${headerToInject}\n${styleTag}`);
         } else {
           html = `<head>\n${reactHeader}\n${styleTag}</head>\n${html}`;
@@ -567,20 +640,39 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
     }
   };
 
-  const getViewportDimensions = () => {
-    switch (viewportMode) {
-      case "mobile":
-        return `w-[375px] h-[667px] shadow-2xl rounded-2xl border-4 ${
-          isLight ? "border-slate-300" : "border-slate-800"
-        }`;
-      case "tablet":
-        return `w-[768px] h-[90%] shadow-2xl rounded-xl border-4 ${
-          isLight ? "border-slate-300" : "border-slate-800"
-        }`;
-      case "desktop":
-      default:
-        return "w-full h-full";
+  const getViewportStyle = (): React.CSSProperties => {
+    if (viewportMode === "desktop") {
+      if (scaleMode === "fit" && containerWidth > 0 && containerWidth < 1200) {
+        const scale = Math.max(0.4, (containerWidth - 24) / 1200);
+        return {
+          width: "1200px",
+          height: `${100 / scale}%`,
+          transform: `scale(${scale})`,
+          transformOrigin: "top center",
+          maxWidth: "none",
+        };
+      }
+      return {
+        width: "100%",
+        height: "100%",
+        maxWidth: "100%",
+        transform: "none",
+      };
     }
+    if (viewportMode === "tablet") {
+      return {
+        width: "768px",
+        maxWidth: "100%",
+        height: "90%",
+      };
+    }
+    // mobile
+    return {
+      width: "375px",
+      maxWidth: "100%",
+      height: "667px",
+      maxHeight: "95%",
+    };
   };
 
   return (
@@ -607,17 +699,38 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
         {/* Viewport Modes */}
         <div className={`flex items-center space-x-1 p-1 rounded-lg border ${isLight ? "bg-slate-100 border-slate-300" : "bg-slate-950 border-slate-800"}`}>
           <button
-            onClick={() => setViewportMode("desktop")}
-            className={`p-1.5 rounded text-xs flex items-center space-x-1 transition-colors ${
-              viewportMode === "desktop"
+            onClick={() => {
+              setViewportMode("desktop");
+              setScaleMode("100");
+            }}
+            className={`px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors ${
+              viewportMode === "desktop" && scaleMode === "100"
                 ? "bg-indigo-600 text-white font-medium"
                 : isLight
                 ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
-            title="Desktop Mode (100%)"
+            title="Desktop Mode (100% Responsive)"
           >
             <Monitor className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-[11px]">100%</span>
+          </button>
+          <button
+            onClick={() => {
+              setViewportMode("desktop");
+              setScaleMode("fit");
+            }}
+            className={`px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors ${
+              viewportMode === "desktop" && scaleMode === "fit"
+                ? "bg-indigo-600 text-white font-medium"
+                : isLight
+                ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                : "text-slate-400 hover:text-white hover:bg-slate-900"
+            }`}
+            title="Auto-Fit Desktop Layout to Preview Space"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-[11px]">Fit</span>
           </button>
           <button
             onClick={() => setViewportMode("tablet")}
@@ -671,7 +784,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
       </div>
 
       {/* Sandbox IFrame Container */}
-      <div className={`flex-1 flex items-center justify-center p-2 overflow-auto relative ${isLight ? "bg-slate-200" : "bg-slate-950"}`}>
+      <div
+        ref={containerRef}
+        className={`flex-1 flex flex-col items-center justify-start overflow-hidden relative transition-colors ${
+          viewportMode === "desktop" && scaleMode === "100" ? "p-0" : "p-3"
+        } ${isLight ? "bg-slate-200" : "bg-slate-950"}`}
+      >
         {/* Animated Loading Overlay: ONLY shown when AI Agent is actively generating code */}
         {isProcessing && (
           <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200 backdrop-blur-md ${isLight ? "bg-white/90 text-slate-900" : "bg-slate-950/90 text-white"}`}>
@@ -690,7 +808,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           srcDoc={srcDoc || generateSrcDoc()}
           title="App Live Preview"
           sandbox="allow-scripts allow-modals"
-          className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}
+          style={getViewportStyle()}
+          className={`bg-slate-900 transition-all duration-300 border-0 ${
+            viewportMode !== "desktop" || scaleMode === "fit"
+              ? isLight
+                ? "border-4 border-slate-300 shadow-2xl rounded-2xl"
+                : "border-4 border-slate-800 shadow-2xl rounded-2xl"
+              : ""
+          }`}
         />
       </div>
     </div>

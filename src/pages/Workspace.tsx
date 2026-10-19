@@ -135,7 +135,7 @@ export default function App() {
           imports.push(`import ${name} from './components/${name}';`);
           sections.push(`        <section id="${name.toLowerCase()}" className="scroll-mt-24"><${name} /></section>`);
         });
-        const autoApp = `${imports.join("\n")}\n\nexport default function App() {\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">\n${sections.join("\n")}\n    </div>\n  );\n}\n`;
+        const autoApp = `${imports.join("\n")}\n\nexport default function App() {\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-full">\n${sections.join("\n")}\n    </div>\n  );\n}\n`;
         const newAppFile = { path: "App.tsx", content: autoApp };
         proj.files = [...proj.files, newAppFile];
         projectsApi.updateFile(session.access_token, id, "App.tsx", autoApp).catch(() => {});
