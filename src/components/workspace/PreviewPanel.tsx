@@ -17,17 +17,16 @@ interface PreviewPanelProps {
 
 type ViewportMode = "desktop" | "tablet" | "mobile";
 
+// Module-level cache to prevent re-transpiling unchanged files with Babel on every render
+const transpileCache = new Map<string, string>();
+
 export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, isProcessing, theme = "dark" }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>("desktop");
   const [iframeKey, setIframeKey] = useState<number>(0);
+  const [srcDoc, setSrcDoc] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const isLight = theme === "light";
-
-  // Auto-refresh iframe when project files change
-  useEffect(() => {
-    setIframeKey((prev) => prev + 1);
-  }, [files]);
 
   // Generate self-contained sandboxed HTML doc with Babel Standalone & React UMD
   const generateSrcDoc = (): string => {
@@ -50,45 +49,74 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
       const mainJsFile = files.find(isAppFile);
 
       const componentFiles = files.filter(
-        (f) => (f.path.endsWith(".tsx") || f.path.endsWith(".jsx") || f.path.endsWith(".js")) && !isAppFile(f)
+        (f) =>
+          (f.path.endsWith(".tsx") ||
+            f.path.endsWith(".jsx") ||
+            f.path.endsWith(".js") ||
+            f.path.endsWith(".ts")) &&
+          !isAppFile(f) &&
+          !f.path.endsWith(".d.ts")
       );
+
+      const consoleSilenceScript = `
+        <script>
+          (function() {
+            var isSilenced = function(args) {
+              var str = '';
+              for (var i = 0; i < args.length; i++) {
+                var a = args[i];
+                str += (typeof a === 'string' ? a : (a && a.message ? a.message : '')) + ' ';
+              }
+              return str.includes('cdn.tailwindcss.com') ||
+                     str.includes('should not be used in production') ||
+                     str.includes('Each child in a list should have a unique "key" prop') ||
+                     str.includes('unique "key" prop') ||
+                     str.includes('reactjs.org/link/warning-keys');
+            };
+
+            var origWarn = console.warn;
+            console.warn = function() {
+              if (isSilenced(arguments)) return;
+              origWarn.apply(console, arguments);
+            };
+
+            var origError = console.error;
+            console.error = function() {
+              if (isSilenced(arguments)) return;
+              origError.apply(console, arguments);
+            };
+          })();
+        </script>
+      `;
 
       const modulePolyfill = `
         <script>
-          window.exports = {};
-          window.module = { exports: window.exports };
-          window.componentRegistry = {};
+          window.exports = window.exports || {};
+          window.module = window.module || { exports: window.exports };
+          window.componentRegistry = window.componentRegistry || {};
           window.__fileErrors = [];
 
-          var origWarn = console.warn;
-          console.warn = function() {
-            var msg = arguments[0] || '';
-            if (typeof msg === 'string' && (
-              msg.includes('cdn.tailwindcss.com should not be used in production') ||
-              msg.includes('Each child in a list should have a unique "key" prop')
-            )) return;
-            origWarn.apply(console, arguments);
-          };
-
-          function unwrapComponent(type) {
-            if (!type) return type;
+          function unwrapComponent(type, depth) {
+            if (!type || (depth || 0) > 4) return type;
             if (typeof type === 'function' || typeof type === 'string') return type;
             if (typeof type === 'object') {
-              if (typeof type.default === 'function') return unwrapComponent(type.default);
-              if (typeof type.App === 'function') return unwrapComponent(type.App);
+              if (type.$$typeof) return type;
+              if (typeof type.default === 'function') return type.default;
+              if (typeof type.default === 'object' && type.default) return unwrapComponent(type.default, (depth || 0) + 1);
+              if (typeof type.App === 'function') return type.App;
               var vals = Object.values(type);
               for (var i = 0; i < vals.length; i++) {
-                if (typeof vals[i] === 'function') return unwrapComponent(vals[i]);
+                if (typeof vals[i] === 'function') return vals[i];
               }
             }
             return type;
           }
 
-          if (window.React) {
-            var origCE = window.React.createElement;
+          if (window.React && !window.__origCreateElement) {
+            window.__origCreateElement = window.React.createElement;
             window.React.createElement = function(type) {
-              arguments[0] = unwrapComponent(type);
-              return origCE.apply(this, arguments);
+              arguments[0] = unwrapComponent(type, 0);
+              return window.__origCreateElement.apply(this, arguments);
             };
           }
 
@@ -136,6 +164,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                 Rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 9v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
                 CheckCircle2: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
                 ArrowRight: '<path d="M5 12h14m-7-7 7 7-7 7"/>',
+                ArrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+                ArrowUpRight: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
                 CheckCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
                 Check: '<polyline points="20 6 9 17 4 12"/>',
                 Menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
@@ -146,9 +176,39 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                 Cpu: '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2m-6-2v2M15 20v2m-6-2v2M2 15h2m-2-6h2M20 15h2m-2-6h2"/>',
                 Code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
                 Code2: '<path d="m18 16 4-4-4-4M6 8l-4 4 4 4m8.5-12-5 16"/>',
+                Terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+                ExternalLink: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+                Github: '<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>',
+                Linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>',
+                Twitter: '<path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>',
+                Briefcase: '<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
+                GraduationCap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+                Award: '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
+                Folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+                FolderGit2: '<path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v2"/><circle cx="13" cy="12" r="2"/><path d="M18 19c-2.8 0-5-2.2-5-5v8"/><circle cx="18" cy="19" r="2"/>',
+                Layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+                Send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+                Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+                Eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+                FileText: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+                MapPin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+                Phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+                Calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+                Clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+                Server: '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
+                Database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+                Smartphone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+                Laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+                Filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+                Layout: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+                Sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+                Moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+                ChevronLeft: '<path d="m15 18-6-6 6-6"/>',
+                ChevronUp: '<path d="m18 15-6-6-6 6"/>',
                 Plus: '<path d="M5 12h14m-7-7v14"/>',
                 Trash2: '<path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 5v6m4-6v6"/>',
                 User: '<circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>',
+                Users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
                 Search: '<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/>',
                 Star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
                 Heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
@@ -204,6 +264,16 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
               return L;
             }
             
+            if (moduleName === 'gsap' || moduleName === 'gsap/all') {
+              var G = window.gsap || {};
+              var ST = window.ScrollTrigger || (window.gsap && window.gsap.ScrollTrigger) || {};
+              return Object.assign({ default: G, gsap: G, ScrollTrigger: ST }, G);
+            }
+            if (moduleName === 'gsap/ScrollTrigger' || moduleName === 'gsap/dist/ScrollTrigger') {
+              var ST = window.ScrollTrigger || (window.gsap && window.gsap.ScrollTrigger) || {};
+              return Object.assign({ default: ST, ScrollTrigger: ST }, ST);
+            }
+
             if (window.componentRegistry[moduleName]) return window.componentRegistry[moduleName];
 
             var clean = moduleName.replace(/^[\\.\\/]+/, '').replace(/^src\\//, '').replace(/\\.[^/.]+$/, '');
@@ -221,13 +291,37 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
       `;
 
       const reactHeader = `
+        ${consoleSilenceScript}
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                  display: ['"Space Grotesk"', 'sans-serif'],
+                  mono: ['"JetBrains Mono"', 'monospace'],
+                }
+              }
+            }
+          };
+        </script>
         <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
         <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
         ${modulePolyfill}
       `;
 
       const transpileFile = (file: ProjectFile) => {
+        const cacheKey = `${file.path}:::${file.content}`;
+        if (transpileCache.has(cacheKey)) {
+          return transpileCache.get(cacheKey)!;
+        }
+
         try {
           const result = Babel.transform(file.content, {
             presets: ["react", "typescript"],
@@ -244,7 +338,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             file.path === "App" ||
             file.path === "./App";
 
-          return `
+          const scriptTag = `
             <script>
               (function() {
                 var fileExports = {};
@@ -316,6 +410,9 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
               })();
             </script>
           `;
+
+          transpileCache.set(cacheKey, scriptTag);
+          return scriptTag;
         } catch (babelErr: any) {
           console.error("Babel transpilation error in " + file.path, babelErr);
           return `
@@ -399,7 +496,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
         const styleTag = combinedCss.trim().length > 0 ? `  <style>\n${combinedCss}\n</style>\n` : "";
 
         if (headMatch) {
-          const headerToInject = !html.includes("react.development.js") ? reactHeader : modulePolyfill;
+          const gsapScript = !html.includes("gsap.min.js")
+            ? '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>\n<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>\n'
+            : '';
+          const headerToInject = !html.includes("react.development.js")
+            ? reactHeader
+            : `${consoleSilenceScript}\n${gsapScript}${modulePolyfill}`;
           html = html.replace(headMatch[0], `${headMatch[0]}\n${headerToInject}\n${styleTag}`);
         } else {
           html = `<head>\n${reactHeader}\n${styleTag}</head>\n${html}`;
@@ -439,7 +541,19 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
     }
   };
 
+  // Debounce HTML generation so rapid file updates don't repeatedly lock the main thread with Babel
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const doc = generateSrcDoc();
+      setSrcDoc(doc);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [files]);
+
   const handleRefresh = () => {
+    transpileCache.clear();
+    setSrcDoc(generateSrcDoc());
     setIframeKey((prev) => prev + 1);
   };
 
@@ -573,7 +687,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
         <iframe
           key={iframeKey}
           ref={iframeRef}
-          srcDoc={generateSrcDoc()}
+          srcDoc={srcDoc || generateSrcDoc()}
           title="App Live Preview"
           sandbox="allow-scripts allow-modals"
           className={`bg-slate-900 transition-all duration-300 ${getViewportDimensions()}`}

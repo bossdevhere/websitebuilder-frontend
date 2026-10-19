@@ -32,101 +32,92 @@ export const Workspace: React.FC = () => {
     try {
       const proj = await projectsApi.getProjectById(session.access_token, id);
       
-      // Auto-seed fresh starter template for empty projects
-      if (!proj.files || proj.files.length === 0 || !proj.files.some((f) => f.path.endsWith("App.tsx"))) {
+      // Auto-seed fresh starter template ONLY for completely empty projects
+      if (!proj.files || proj.files.length === 0) {
         const safeTitle = proj.name || "New Project";
         const starterFiles = [
           {
             path: "App.tsx",
-            content: `import React, { useState } from 'react';
-import { Sparkles, Code2, Rocket, ArrowRight, CheckCircle2 } from 'lucide-react';
+            content: `import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles, Code2, Rocket, ArrowRight, CheckCircle2, Zap } from 'lucide-react';
+import gsap from 'gsap';
 
 export default function App() {
   const [count, setCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from('.gsap-badge', { opacity: 0, y: -16, duration: 0.6, ease: 'power2.out' });
+      gsap.from('.gsap-hero', { opacity: 0, y: 24, duration: 0.8, delay: 0.15, ease: 'power3.out' });
+      gsap.from('.gsap-card', { opacity: 0, scale: 0.95, duration: 0.7, delay: 0.3, stagger: 0.1, ease: 'back.out(1.4)' });
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Header */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+    <div ref={containerRef} className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-300">
+      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-6 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-600/30">
+          <div className="p-2 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-xl text-white shadow-lg shadow-indigo-600/30">
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="font-bold text-lg text-white tracking-tight">${safeTitle}</span>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-          Ready for AI Development
-        </span>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-indigo-400" /> GSAP & Tailwind Ready
+          </span>
+        </div>
       </header>
 
-      {/* Hero Welcome Canvas */}
-      <main className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-2xl w-full text-center space-y-8">
-          <div className="inline-flex p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-indigo-400 mb-2">
-            <Rocket className="w-10 h-10" />
+      <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="max-w-3xl w-full text-center space-y-8 relative z-10">
+          <div className="gsap-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm">
+            <Rocket className="w-4 h-4 text-indigo-400" /> AI-Powered Next Gen Workspace
           </div>
 
-          <div className="space-y-3">
-            <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">
-              Welcome to <span className="text-indigo-400">${safeTitle}</span>
+          <div className="gsap-hero space-y-4">
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-tight">
+              Build stunning websites with <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">AI & GSAP</span>
             </h1>
             <p className="text-slate-400 text-base md:text-lg max-w-xl mx-auto leading-relaxed">
-              Your new project workspace is ready. Tell the AI assistant what you want to build, or edit this code directly to get started.
+              Your modern workspace is live. Describe any website, landing page, or web app to the AI assistant on the left to start generating production-ready code.
             </p>
           </div>
 
-          {/* Interactive React State Widget */}
-          <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-2xl max-w-md mx-auto shadow-xl space-y-4">
+          <div className="gsap-card p-6 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl max-w-md mx-auto shadow-2xl space-y-4 hover:border-slate-700 transition-all">
             <div className="flex items-center justify-between text-sm text-slate-400">
               <span className="flex items-center gap-1.5 font-medium text-slate-300">
                 <Code2 className="w-4 h-4 text-indigo-400" /> Interactive React State
               </span>
-              <span className="text-xs text-indigo-400 font-mono">Count: {count}</span>
+              <span className="text-xs text-indigo-400 font-mono bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">Count: {count}</span>
             </div>
             <button
               onClick={() => setCount((c) => c + 1)}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/25 active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Click to test reactivity</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Prompt Ideas */}
-          <div className="pt-4 border-t border-slate-900 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
-            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
-              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full App Generation
-              </p>
-              <p className="text-[11px] text-slate-400">Ask the AI: "Build a modern dashboard with charts and dark mode"</p>
-            </div>
-            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
-              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Component Library
-              </p>
-              <p className="text-[11px] text-slate-400">Ask the AI: "Add an e-commerce catalog with search and cart drawer"</p>
-            </div>
-            <div className="p-3.5 bg-slate-900/50 border border-slate-800/80 rounded-xl">
-              <p className="text-xs font-semibold text-white mb-1 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Custom Landing Page
-              </p>
-              <p className="text-[11px] text-slate-400">Ask the AI: "Create a SaaS landing page with pricing and testimonials"</p>
-            </div>
-          </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
-        AI Web Builder • Powered by Autonomous LLM Agent
+      <footer className="border-t border-slate-900/80 py-4 text-center text-xs text-slate-500">
+        AI Web Builder • Powered by Autonomous LLM Agent & GSAP
       </footer>
     </div>
   );
-}`
+}
+`
           },
           {
             path: "index.html",
-            content: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <title>${safeTitle}</title>\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>`
+            content: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <title>${safeTitle}</title>\n    <script src="https://cdn.tailwindcss.com"></script>\n    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>\n    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>\n  </head>\n  <body class="bg-slate-950 text-slate-100 font-sans">\n    <div id="root"></div>\n  </body>\n</html>`
           }
         ];
 
@@ -134,6 +125,20 @@ export default function App() {
         starterFiles.forEach((f) => {
           projectsApi.updateFile(session.access_token, id, f.path, f.content).catch(() => {});
         });
+      } else if (!proj.files.some((f) => f.path.endsWith("App.tsx"))) {
+        // Files exist (e.g. components/Navbar.tsx) but App.tsx is missing: auto-compose App.tsx WITHOUT deleting existing files!
+        const componentFiles = proj.files.filter((f) => f.path.startsWith("components/"));
+        const imports = ["import React from 'react';"];
+        const sections: string[] = [];
+        componentFiles.forEach((cf) => {
+          const name = cf.path.replace("components/", "").replace(/\.[^/.]+$/, "");
+          imports.push(`import ${name} from './components/${name}';`);
+          sections.push(`        <section id="${name.toLowerCase()}" className="scroll-mt-24"><${name} /></section>`);
+        });
+        const autoApp = `${imports.join("\n")}\n\nexport default function App() {\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">\n${sections.join("\n")}\n    </div>\n  );\n}\n`;
+        const newAppFile = { path: "App.tsx", content: autoApp };
+        proj.files = [...proj.files, newAppFile];
+        projectsApi.updateFile(session.access_token, id, "App.tsx", autoApp).catch(() => {});
       }
 
       setProject(proj);
@@ -221,6 +226,35 @@ export default function App() {
         files: (prev.files || []).map((f) => (f.path === activeFilePath ? updatedFile : f)),
       };
     });
+  };
+
+  const handleAgentBatchFilesUpdated = (
+    changes: { path: string; content: string }[],
+    deletions: string[] = []
+  ) => {
+    if ((!changes || changes.length === 0) && (!deletions || deletions.length === 0)) return;
+    setProject((prev) => {
+      if (!prev) return prev;
+      let files = [...(prev.files || [])];
+      if (deletions.length > 0) {
+        const delSet = new Set(deletions);
+        files = files.filter((f) => !delSet.has(f.path));
+      }
+      changes.forEach((c) => {
+        const idx = files.findIndex((f) => f.path === c.path);
+        if (idx !== -1) {
+          files[idx] = { ...files[idx], content: c.content };
+        } else {
+          files.push({ path: c.path, content: c.content });
+        }
+      });
+      return { ...prev, files };
+    });
+
+    if (changes.length > 0) {
+      const app = changes.find((c) => c.path.endsWith("App.tsx") || c.path === "App.tsx");
+      setActiveFilePath(app ? app.path : changes[0].path);
+    }
   };
 
   const handleAgentFileUpdated = (path: string, content: string) => {
@@ -404,6 +438,7 @@ export default function App() {
           projectId={project.id}
           token={session?.access_token || ""}
           onFileUpdated={handleAgentFileUpdated}
+          onBatchFilesUpdated={handleAgentBatchFilesUpdated}
           onFileDeleted={handleAgentFileDeleted}
           onProcessingStateChange={setIsAgentProcessing}
           theme={theme}

@@ -31,6 +31,7 @@ export async function downloadProjectZip(project: Project): Promise<void> {
             react: "^18.3.1",
             "react-dom": "^18.3.1",
             "lucide-react": "^0.475.0",
+            gsap: "^3.12.5",
           },
           devDependencies: {
             "@types/react": "^18.3.18",

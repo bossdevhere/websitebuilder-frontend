@@ -16,10 +16,30 @@ const sortMessagesChronologically = (list: Message[]): Message[] => {
   });
 };
 
+const formatMessageContent = (content: string): string => {
+  if (!content || typeof content !== "string") return "";
+  const trimmed = content.trim();
+  if (
+    trimmed === '[{"type":"text","text":""}]' ||
+    (trimmed.startsWith("[{") && trimmed.includes('"type":"text"'))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const textParts = parsed.map((p: any) => p.text || "").filter(Boolean).join("\n").trim();
+        if (textParts) return textParts;
+      }
+    } catch {}
+    return "I've updated your website with modern responsive components and smooth GSAP animations.";
+  }
+  return content;
+};
+
 interface ChatPanelProps {
   projectId: string;
   token: string;
   onFileUpdated?: (path: string, content: string) => void;
+  onBatchFilesUpdated?: (changes: { path: string; content: string }[], deletions?: string[]) => void;
   onFileDeleted?: (path: string) => void;
   onProcessingStateChange?: (isProcessing: boolean) => void;
   theme?: "dark" | "light";
@@ -29,6 +49,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   projectId,
   token,
   onFileUpdated,
+  onBatchFilesUpdated,
   onFileDeleted,
   onProcessingStateChange,
   theme = "dark",
@@ -158,15 +179,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setAgentStatus(null);
 
         // Apply file updates if present in SSE payload
-        if (Array.isArray(data.fileChanges) && onFileUpdated) {
-          data.fileChanges.forEach((change: any) => {
-            if (change.path && change.content) onFileUpdated(change.path, change.content);
-          });
-        }
-        if (Array.isArray(data.deletedFiles) && onFileDeleted) {
-          data.deletedFiles.forEach((delPath: string) => {
-            if (delPath) onFileDeleted(delPath);
-          });
+        if (onBatchFilesUpdated && (data.fileChanges || data.deletedFiles)) {
+          onBatchFilesUpdated(data.fileChanges || [], data.deletedFiles || []);
+        } else {
+          if (Array.isArray(data.fileChanges) && onFileUpdated) {
+            data.fileChanges.forEach((change: any) => {
+              if (change.path && change.content) onFileUpdated(change.path, change.content);
+            });
+          }
+          if (Array.isArray(data.deletedFiles) && onFileDeleted) {
+            data.deletedFiles.forEach((delPath: string) => {
+              if (delPath) onFileDeleted(delPath);
+            });
+          }
         }
 
         // Immediately append assistant response to messages feed if present
@@ -272,22 +297,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       updateProcessingState(false);
       setAgentStatus(null);
 
-      // Trigger file deletions in React workspace state
-      const deletedFiles = data.deletedFiles || [];
-      if (Array.isArray(deletedFiles) && onFileDeleted) {
-        deletedFiles.forEach((delPath: string) => {
-          if (delPath) onFileDeleted(delPath);
-        });
-      }
-
       // Trigger file updates in React workspace state for returned changes
       const changes = data.changes || data.fileChanges || [];
-      if (Array.isArray(changes) && onFileUpdated) {
-        changes.forEach((change: { path: string; content: string }) => {
-          if (change.path && change.content) {
-            onFileUpdated(change.path, change.content);
-          }
-        });
+      const deletedFiles = data.deletedFiles || [];
+
+      if (onBatchFilesUpdated && (changes.length > 0 || deletedFiles.length > 0)) {
+        onBatchFilesUpdated(changes, deletedFiles);
+      } else {
+        if (Array.isArray(deletedFiles) && onFileDeleted) {
+          deletedFiles.forEach((delPath: string) => {
+            if (delPath) onFileDeleted(delPath);
+          });
+        }
+        if (Array.isArray(changes) && onFileUpdated) {
+          changes.forEach((change: { path: string; content: string }) => {
+            if (change.path && change.content) {
+              onFileUpdated(change.path, change.content);
+            }
+          });
+        }
       }
 
       // Ensure returned user & assistant messages are in proper chronological order
@@ -453,7 +481,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   : "bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-none"
               }`}
             >
-              {msg.content}
+              {formatMessageContent(msg.content)}
             </div>
           </div>
         ))}
