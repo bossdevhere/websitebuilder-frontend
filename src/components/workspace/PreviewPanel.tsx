@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Sparkles, Maximize2 } from "lucide-react";
+import { RefreshCw, ExternalLink, Monitor, Tablet, Smartphone, Sparkles } from "lucide-react";
 import * as Babel from "@babel/standalone";
 
 interface ProjectFile {
@@ -22,25 +22,9 @@ const transpileCache = new Map<string, string>();
 
 export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, isProcessing, theme = "dark" }) => {
   const [viewportMode, setViewportMode] = useState<ViewportMode>("desktop");
-  const [scaleMode, setScaleMode] = useState<"100" | "fit">("100");
-  const [containerWidth, setContainerWidth] = useState<number>(0);
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [srcDoc, setSrcDoc] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const updateSize = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.clientWidth);
-      }
-    };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   const isLight = theme === "light";
 
@@ -642,16 +626,6 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
 
   const getViewportStyle = (): React.CSSProperties => {
     if (viewportMode === "desktop") {
-      if (scaleMode === "fit" && containerWidth > 0 && containerWidth < 1200) {
-        const scale = Math.max(0.4, (containerWidth - 24) / 1200);
-        return {
-          width: "1200px",
-          height: `${100 / scale}%`,
-          transform: `scale(${scale})`,
-          transformOrigin: "top center",
-          maxWidth: "none",
-        };
-      }
       return {
         width: "100%",
         height: "100%",
@@ -699,38 +673,17 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
         {/* Viewport Modes */}
         <div className={`flex items-center space-x-1 p-1 rounded-lg border ${isLight ? "bg-slate-100 border-slate-300" : "bg-slate-950 border-slate-800"}`}>
           <button
-            onClick={() => {
-              setViewportMode("desktop");
-              setScaleMode("100");
-            }}
-            className={`px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors ${
-              viewportMode === "desktop" && scaleMode === "100"
+            onClick={() => setViewportMode("desktop")}
+            className={`p-1.5 rounded text-xs flex items-center space-x-1 transition-colors ${
+              viewportMode === "desktop"
                 ? "bg-indigo-600 text-white font-medium"
                 : isLight
                 ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
                 : "text-slate-400 hover:text-white hover:bg-slate-900"
             }`}
-            title="Desktop Mode (100% Responsive)"
+            title="Desktop Mode"
           >
             <Monitor className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">100%</span>
-          </button>
-          <button
-            onClick={() => {
-              setViewportMode("desktop");
-              setScaleMode("fit");
-            }}
-            className={`px-2 py-1 rounded text-xs flex items-center space-x-1 transition-colors ${
-              viewportMode === "desktop" && scaleMode === "fit"
-                ? "bg-indigo-600 text-white font-medium"
-                : isLight
-                ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                : "text-slate-400 hover:text-white hover:bg-slate-900"
-            }`}
-            title="Auto-Fit Desktop Layout to Preview Space"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">Fit</span>
           </button>
           <button
             onClick={() => setViewportMode("tablet")}
@@ -785,9 +738,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
 
       {/* Sandbox IFrame Container */}
       <div
-        ref={containerRef}
-        className={`flex-1 flex flex-col items-center justify-start overflow-hidden relative transition-colors ${
-          viewportMode === "desktop" && scaleMode === "100" ? "p-0" : "p-3"
+        className={`flex-1 flex flex-col items-center justify-center overflow-hidden relative transition-colors ${
+          viewportMode === "desktop" ? "p-0" : "p-3"
         } ${isLight ? "bg-slate-200" : "bg-slate-950"}`}
       >
         {/* Animated Loading Overlay: ONLY shown when AI Agent is actively generating code */}
@@ -810,7 +762,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           sandbox="allow-scripts allow-modals"
           style={getViewportStyle()}
           className={`bg-slate-900 transition-all duration-300 border-0 ${
-            viewportMode !== "desktop" || scaleMode === "fit"
+            viewportMode !== "desktop"
               ? isLight
                 ? "border-4 border-slate-300 shadow-2xl rounded-2xl"
                 : "border-4 border-slate-800 shadow-2xl rounded-2xl"
