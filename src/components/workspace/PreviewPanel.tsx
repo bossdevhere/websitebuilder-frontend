@@ -97,7 +97,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           window.__fileErrors = [];
 
           function unwrapComponent(type, depth) {
-            if (!type || (depth || 0) > 4) return type;
+            if ((depth || 0) > 4) return type;
+            if (!type) {
+              return function MissingFallback(props) {
+                return (props && props.children) ? (window.React ? window.React.createElement(window.React.Fragment || 'div', null, props.children) : null) : null;
+              };
+            }
             if (typeof type === 'function' || typeof type === 'string') return type;
             if (typeof type === 'object') {
               if (type.$$typeof) return type;
@@ -115,23 +120,39 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           if (window.React && !window.__origCreateElement) {
             window.__origCreateElement = window.React.createElement;
             window.React.createElement = function(type) {
-              arguments[0] = unwrapComponent(type, 0);
-              return window.__origCreateElement.apply(this, arguments);
+              var args = Array.prototype.slice.call(arguments);
+              args[0] = unwrapComponent(type, 0);
+              return window.__origCreateElement.apply(this, args);
             };
           }
 
           window.__makeCallableModule = function(target, primary) {
             target.__esModule = true;
-            if (typeof primary === 'function') {
-              var fn = function(props) {
-                return primary(props);
-              };
-              Object.assign(fn, target);
-              fn.default = primary;
-              fn.__esModule = true;
-              return fn;
+            var base = typeof primary === 'function' ? primary : function(props) {
+              return (props && props.children) || null;
+            };
+            var fn = function(props) {
+              return base(props);
+            };
+            Object.assign(fn, target);
+            if (primary) fn.default = primary;
+            fn.__esModule = true;
+
+            if (typeof Proxy !== 'undefined') {
+              return new Proxy(fn, {
+                get: function(t, p) {
+                  if (p in t) return t[p];
+                  if (typeof p === 'string') {
+                    var lower = p.toLowerCase();
+                    var match = Object.keys(t).find(function(k) { return k.toLowerCase() === lower; });
+                    if (match) return t[match];
+                  }
+                  if (p === 'default') return t.default || t;
+                  return t[p];
+                }
+              });
             }
-            return target;
+            return fn;
           };
           
           window.require = function(moduleName) {
@@ -156,6 +177,61 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             if (moduleName === 'react-dom' || moduleName === 'react-dom/client') {
               var RD = window.ReactDOM || {};
               return Object.assign({ default: RD }, RD);
+            }
+            if (moduleName === 'react-router-dom' || moduleName === 'react-router') {
+              var RouterShim = function(props) { return (props && props.children) ? (window.React ? window.React.createElement(window.React.Fragment || 'div', null, props.children) : null) : null; };
+              var LinkShim = function(props) {
+                return window.React ? window.React.createElement('a', {
+                  href: (props && props.to) || '#',
+                  className: (props && props.className) || '',
+                  onClick: function(e) { e.preventDefault(); if (props && props.onClick) props.onClick(e); }
+                }, props && props.children) : null;
+              };
+              return {
+                BrowserRouter: RouterShim,
+                HashRouter: RouterShim,
+                MemoryRouter: RouterShim,
+                Router: RouterShim,
+                Routes: RouterShim,
+                Route: function(props) {
+                  if (!props) return null;
+                  return props.element || (props.Component ? (window.React ? window.React.createElement(props.Component) : null) : null);
+                },
+                Link: LinkShim,
+                NavLink: LinkShim,
+                useNavigate: function() { return function() {}; },
+                useLocation: function() { return { pathname: '/', search: '', hash: '', state: null }; },
+                useParams: function() { return {}; },
+                useSearchParams: function() { return [new URLSearchParams(), function() {}]; },
+                Outlet: function() { return null; },
+                default: RouterShim
+              };
+            }
+            if (moduleName === 'framer-motion') {
+              var createMotion = function(tag) {
+                return function(props) {
+                  var p = Object.assign({}, props);
+                  delete p.initial; delete p.animate; delete p.exit; delete p.transition;
+                  delete p.whileHover; delete p.whileTap; delete p.whileInView; delete p.viewport;
+                  return window.React ? window.React.createElement(tag, p) : null;
+                };
+              };
+              var motionProxy = typeof Proxy !== 'undefined' ? new Proxy({}, {
+                get: function(t, tag) { return createMotion(tag); }
+              }) : {};
+              return {
+                motion: motionProxy,
+                AnimatePresence: function(props) { return props && props.children; },
+                useAnimation: function() { return { start: function() {} }; },
+                default: motionProxy
+              };
+            }
+            if (moduleName === 'clsx' || moduleName === 'classnames' || moduleName === 'tailwind-merge') {
+              var cn = function() {
+                var args = Array.prototype.slice.call(arguments);
+                return args.flat ? args.flat(Infinity).filter(Boolean).join(' ') : args.filter(Boolean).join(' ');
+              };
+              return { default: cn, clsx: cn, twMerge: cn };
             }
             if (moduleName === 'lucide-react') {
               var L = window.lucide || {};
@@ -280,12 +356,33 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
             if (window.componentRegistry[clean]) return window.componentRegistry[clean];
             if (window.componentRegistry["./" + clean]) return window.componentRegistry["./" + clean];
             if (window.componentRegistry["../" + clean]) return window.componentRegistry["../" + clean];
+            if (window.componentRegistry[clean.toLowerCase()]) return window.componentRegistry[clean.toLowerCase()];
 
             var base = clean.split('/').pop();
             if (base && window.componentRegistry[base]) return window.componentRegistry[base];
             if (base && window.componentRegistry[base.toLowerCase()]) return window.componentRegistry[base.toLowerCase()];
 
-            return window.exports;
+            var createSafeDummy = function() {
+              var dummyFn = function(props) { return (props && props.children) ? (window.React ? window.React.createElement(window.React.Fragment || 'div', null, props.children) : null) : null; };
+              dummyFn.__esModule = true;
+              dummyFn.default = dummyFn;
+              if (typeof Proxy !== 'undefined') {
+                return new Proxy(dummyFn, {
+                  get: function(t, p) {
+                    if (p === '__esModule') return true;
+                    if (p === 'default') return dummyFn;
+                    if (p === 'length') return 0;
+                    if (p === Symbol.iterator) return function() { return [][Symbol.iterator](); };
+                    if (p === '0' || p === 0) return {};
+                    if (p === 'toString' || p === 'valueOf') return function() { return ''; };
+                    return createSafeDummy();
+                  }
+                });
+              }
+              return dummyFn;
+            };
+
+            return createSafeDummy();
           };
         </script>
       `;
@@ -413,11 +510,19 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                     }
                   }
 
-                  if (primary && !combined.default) {
-                    combined.default = primary;
+                  if (!combined.default) {
+                    if (primary) {
+                      combined.default = primary;
+                    } else {
+                      var expKeys = Object.keys(combined).filter(function(k) { return k !== '__esModule' && k !== 'default'; });
+                      if (expKeys.length > 0) {
+                        var firstExp = expKeys.find(function(k) { return Array.isArray(combined[k]); }) || expKeys[0];
+                        combined.default = combined[firstExp];
+                      }
+                    }
                   }
 
-                  var exportedModule = window.__makeCallableModule ? window.__makeCallableModule(combined, primary) : combined;
+                  var exportedModule = window.__makeCallableModule ? window.__makeCallableModule(combined, primary || combined.default) : combined;
 
                   var rawPath = "${file.path}";
                   var noExt = rawPath.replace(/\\.[^/.]+$/, "");
@@ -487,7 +592,20 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
           window.addEventListener('error', function(e) {
             var rootElement = document.getElementById('root') || document.body;
             if (rootElement && !rootElement.innerHTML.includes('Preview Runtime Exception')) {
-              rootElement.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Preview Runtime Exception</h3><p style="margin-bottom: 12px; white-space: pre-wrap;">' + (e.message || e) + '</p><div style="font-size: 12px; color: #94a3b8;">Line: ' + (e.lineno || 'N/A') + ' | File: ' + (e.filename || 'App') + '</div></div>';
+              var err = e.error || {};
+              var msg = e.message || String(e);
+              var stack = err.stack || '';
+              var fileInfo = 'Line: ' + (e.lineno || 'N/A') + ' | File: ' + (e.filename || 'App');
+              if (stack) {
+                var lines = stack.split('\\n');
+                for (var i = 1; i < lines.length; i++) {
+                  if (!lines[i].includes('react-dom') && !lines[i].includes('react.development')) {
+                    fileInfo = lines[i].trim();
+                    break;
+                  }
+                }
+              }
+              rootElement.innerHTML = '<div style="background-color: #0f172a; color: #f87171; padding: 24px; font-family: monospace; border: 1px solid #dc2626; border-radius: 8px; margin: 20px;"><h3 style="font-size: 16px; font-weight: bold; color: #fbbf24; margin-bottom: 8px;">⚠️ Preview Runtime Exception</h3><p style="margin-bottom: 12px; white-space: pre-wrap; font-weight: 600;">' + msg + '</p><div style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">' + fileInfo + '</div>' + (stack ? '<details><summary style="cursor:pointer; color:#94a3b8; font-size:11px;">View Stack Trace</summary><pre style="font-size:11px; color:#64748b; margin-top:8px; overflow-x:auto;">' + stack + '</pre></details>' : '') + '</div>';
             }
           });
 
@@ -527,8 +645,64 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files, previewUrl, i
                 }
 
                 if (TargetComponent && (typeof TargetComponent === 'function' || typeof TargetComponent === 'object')) {
+                  class PreviewErrorBoundary extends window.React.Component {
+                    constructor(props) {
+                      super(props);
+                      this.state = { hasError: false, error: null, errorInfo: null };
+                    }
+                    static getDerivedStateFromError(error) {
+                      return { hasError: true, error: error };
+                    }
+                    componentDidCatch(error, errorInfo) {
+                      console.error("Preview render error:", error, errorInfo);
+                      this.setState({ error: error, errorInfo: errorInfo });
+                    }
+                    render() {
+                      if (this.state.hasError) {
+                        var err = this.state.error || {};
+                        var info = this.state.errorInfo || {};
+                        var compStack = (info.componentStack || "").trim();
+                        var jsStack = (err.stack || "").trim();
+                        return window.React.createElement("div", {
+                          style: {
+                            backgroundColor: "#0f172a",
+                            color: "#f87171",
+                            padding: "24px",
+                            fontFamily: "monospace",
+                            border: "1px solid #dc2626",
+                            borderRadius: "12px",
+                            margin: "20px",
+                            maxWidth: "900px"
+                          }
+                        },
+                          window.React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" } },
+                            window.React.createElement("span", { style: { fontSize: "20px" } }, "⚠️"),
+                            window.React.createElement("h3", { style: { fontSize: "16px", fontWeight: "bold", color: "#fbbf24", margin: 0 } }, "Component Render Exception")
+                          ),
+                          window.React.createElement("p", { style: { fontSize: "14px", color: "#fca5a5", marginBottom: "16px", fontWeight: "600", whiteSpace: "pre-wrap" } },
+                            err.message || String(err)
+                          ),
+                          compStack ? window.React.createElement("div", { style: { marginBottom: "16px" } },
+                            window.React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", color: "#94a3b8", marginBottom: "6px" } }, "Component Hierarchy:"),
+                            window.React.createElement("pre", { style: { fontSize: "12px", background: "#1e293b", padding: "12px", borderRadius: "8px", color: "#38bdf8", overflowX: "auto", margin: 0, whiteSpace: "pre-wrap" } }, compStack)
+                          ) : null,
+                          jsStack ? window.React.createElement("details", { style: { marginTop: "12px" } },
+                            window.React.createElement("summary", { style: { fontSize: "12px", color: "#94a3b8", cursor: "pointer" } }, "Technical Stack Trace"),
+                            window.React.createElement("pre", { style: { fontSize: "11px", background: "#020617", padding: "12px", borderRadius: "8px", color: "#64748b", overflowX: "auto", marginTop: "8px", whiteSpace: "pre-wrap" } }, jsStack)
+                          ) : null
+                        );
+                      }
+                      return this.props.children;
+                    }
+                  }
+
                   const rootElement = document.getElementById('root') || document.body;
-                  ReactDOM.createRoot(rootElement).render(React.createElement(TargetComponent));
+                  const unwrapped = unwrapComponent(TargetComponent);
+                  ReactDOM.createRoot(rootElement).render(
+                    window.React.createElement(PreviewErrorBoundary, null,
+                      window.React.createElement(unwrapped)
+                    )
+                  );
                 }
               } catch (err) {
                 console.error(err);
