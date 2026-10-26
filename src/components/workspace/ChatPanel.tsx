@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare, AlertTriangle } from "lucide-react";
+import { Send, Bot, User as UserIcon, Loader2, Sparkles, Terminal, Plus, MessageSquare, AlertTriangle, X } from "lucide-react";
 import { chatApi, buildApiUrl } from "../../services";
 import { ChatMessage, Conversation, ThemeMode } from "../../types";
 
@@ -288,8 +288,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const timeoutId = setTimeout(() => {
       updateProcessingState(false);
       setAgentStatus(null);
-      setUiError("Request timed out. The AI agent may still be building complex components. Please check preview or retry.");
-    }, 180000);
+      setUiError("Request timed out. The AI agent may still be building complex components in the background. Please check the live preview tab or retry.");
+    }, 300000); // 5 minutes matching backend server timeout
 
     try {
       const data = await chatApi.sendMessage(token, projectId, activeConversationId, userText);
@@ -435,9 +435,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Error Banner */}
       {uiError && (
-        <div className="m-3 p-2.5 bg-red-950/80 border border-red-800/80 rounded-lg text-xs text-red-300 flex items-center space-x-2 [overflow-wrap:anywhere] break-words">
-          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <span>{uiError}</span>
+        <div className="m-3 p-2.5 bg-red-950/80 border border-red-800/80 rounded-lg text-xs text-red-300 flex items-center justify-between space-x-2 [overflow-wrap:anywhere] break-words">
+          <div className="flex items-center space-x-2 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>{uiError}</span>
+          </div>
+          <button
+            onClick={() => setUiError(null)}
+            className="p-1 hover:bg-red-900/50 rounded text-red-400 hover:text-red-200 transition-colors flex-shrink-0"
+            title="Dismiss error"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
